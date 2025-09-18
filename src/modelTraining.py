@@ -102,13 +102,7 @@ gs = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':2500}
        'word2vec':{'c':25, 'e':50, 'epochs':1, 'method':'incremental'}}]
 """
 gs = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':2500},
-       'word2vec':{'c':25, 'e':50, 'epochs':1, 'method':'incremental'}},
-      {'corpus':{'services':'dks', 'without_duplicates':True},
        'word2vec':{'c':25, 'e':50, 'epochs':1, 'method':'incremental'}}]
-{'corpus':{'services':'auto', 'without_duplicates':False, 'top_ports':2500},
-       'word2vec':{'c':25, 'e':50, 'epochs':1, 'method':'incremental'}},
-      {'corpus':{'services':'dks', 'without_duplicates':False},
-       'word2vec':{'c':25, 'e':50, 'epochs':1, 'method':'incremental'}}
 
 for params in gs:
     mname = f'gs_kofknn_incremental_{params['corpus']['services']}_new_{params['corpus']['without_duplicates']}'
