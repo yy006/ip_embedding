@@ -93,6 +93,7 @@ def load_raw_data(day):
     raw_data = pd.concat(df_list)
     return raw_data
 
+breakpoint()
 def filter_data(raw_data, day_to_filter):
     filt = load_filter_from_chunk(day_to_filter)
     # Filter IPS
@@ -102,7 +103,6 @@ def filter_data(raw_data, day_to_filter):
     filtered = filtered.sort_index()
         
     return filtered
-
 
 def get_next_day(start):
     start = datetime.strptime(start, '%Y%m%d')
