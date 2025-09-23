@@ -4,11 +4,19 @@ from pathlib import Path
 ###############################################################################
 # Global path of the raw darknet traces
 ###############################################################################
-breakpoint()
+#breakpoint()
 ROOT = Path(__file__).resolve().parents[1]
 print("ROOT:", ROOT)
-DATA = ROOT/'datasets'
-TRACES  = f'{DATA}/top5000.csv'
+DATASET = 'UNSW-NB15'
+DATA = ROOT/'datasets'/DATASET
+
+TRACES = f'{DATA}/top5000.csv'
+# ブロック番号 → ファイルパス（Path）
+BLOCKS: dict[int, Path] = {
+    1: DATA / "top5000.csv",
+    2: DATA / "top5000.csv",
+    3: DATA / "top5000.csv",
+}
 #MODELS = f'{DATA}/models'
 #GRAPHS = f'{DATA}/graphs'
 #DATASETS = f'{DATA}/interim'

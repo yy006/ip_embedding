@@ -3,26 +3,50 @@ import pandas as pd
 from datetime import datetime, timedelta
 from glob import glob
 from config import *
+from typing import Tuple, Dict, Any
 
 ###############################################################################
 # Raw data loading and preliminary transformations
 ###############################################################################
-def pool_setup(flist):
-    cpus = len(flist)
-    if len(flist)>cpu_count(): cpus = cpu_count()
+
+SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "UNSW-NB15": {
+        "usecols": ['Timestamp', 'Source IP', 'Destination Port', 'Protocol', 'Total Length of Fwd Packets'],
+        "rename": {'Timestamp': 'ts', 'Source IP': 'ip', 'Destination Port': 'port', 'Protocol': 'proto'},
+        "sep": ','
+    }
+}
+
+def get_schema(dataset: str) -> Dict[str, Any]:
+    """データセット名から read_csv 用のスキーマを返す。存在しなければわかりやすく失敗。"""
+    try:
+        return SCHEMA_REGISTRY[dataset]
+    except KeyError as e:
+        raise ValueError(f"Unknown dataset '{dataset}'. Available: {list(SCHEMA_REGISTRY)}") from e
+
+def pool_setup(blocks: dict[int, Path]):
+    items = sorted(blocks.items()) 
+    cpus = len(blocks)
+    if len(blocks)>cpu_count(): cpus = cpu_count()
     try:
         pool = Pool(processes=cpus)
     except ValueError:
         pool = Pool(processes=1)
-    iterable = iter(flist)
     
-    return pool, iterable
+    return pool, iter(items)
 
-def get_data(item):
+def get_data(item: Tuple[int, Path]) -> pd.DataFrame:
+    block_id, path = item
+    schema = get_schema(DATASET)
+
     # Read a single file
-    f_df = pd.read_csv(item, sep=' ')[['ts', 'src_ip', 'dst_port', 
-                                       'proto', 'pck_len']]\
-             .rename(columns={'src_ip':'ip', 'dst_port':'port'})
+    print(pd.read_csv(path, nrows=5).columns)
+    f_df = pd.read_csv(path,
+                       sep=schema["sep"],
+                       usecols=schema["usecols"],
+                       skipinitialspace=True, 
+                       ).rename(columns=schema['rename'])
+
     # Replace decimal representation of protocols to string identifier
     to_replace = dict()
     for x in f_df.proto.unique():
@@ -34,9 +58,9 @@ def get_data(item):
     # Merge port and protocol as 'port/protocol'
     f_df['pp'] = f_df.port.astype(str)+"/"+f_df.proto
     # Convert timestamps
-    f_df.ts = f_df.ts.apply(lambda x: datetime.fromtimestamp(x))
+    #f_df.ts = f_df.ts.apply(lambda x: datetime.fromtimestamp(x))
     
-    return f_df
+    return f_df.assign(block=block_id)
 
 ###############################################################################
 # Filtering preliminary preprocessed data
@@ -85,16 +109,17 @@ def load_filter_from_chunk(day):
 ###############################################################################
 # Main functions
 ###############################################################################
-def load_raw_data(day):
-    pool, iterable = pool_setup(glob(f'{TRACES}/{day}*'))
+def load_raw_data(blocks: dict[int, Path]):
+    pool, iterable = pool_setup(blocks)
     df_list = pool.map(get_data, iterable)
     pool.close()
     pool.join()
     raw_data = pd.concat(df_list)
     return raw_data
-
 breakpoint()
+
 def filter_data(raw_data, day_to_filter):
+    #10回以上出現するIPアドレスを抽出
     filt = load_filter_from_chunk(day_to_filter)
     # Filter IPS
     filtered = raw_data[raw_data.ip.isin(set(filt))]
