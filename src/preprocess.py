@@ -13,7 +13,8 @@ SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UNSW-NB15": {
         "usecols": ['Timestamp', 'Source IP', 'Destination Port', 'Protocol', 'Total Length of Fwd Packets'],
         "rename": {'Timestamp': 'ts', 'Source IP': 'ip', 'Destination Port': 'port', 'Protocol': 'proto'},
-        "sep": ','
+        "sep": ',',
+        "ip_col": ['Source IP'],
     }
 }
 
@@ -24,23 +25,22 @@ def get_schema(dataset: str) -> Dict[str, Any]:
     except KeyError as e:
         raise ValueError(f"Unknown dataset '{dataset}'. Available: {list(SCHEMA_REGISTRY)}") from e
 
-def pool_setup(blocks: dict[int, Path]):
-    items = sorted(blocks.items()) 
-    cpus = len(blocks)
-    if len(blocks)>cpu_count(): cpus = cpu_count()
+def pool_setup(flist: list):
+    cpus = len(flist)
+    if len(flist)>cpu_count(): cpus = cpu_count()
     try:
         pool = Pool(processes=cpus)
     except ValueError:
         pool = Pool(processes=1)
     
-    return pool, iter(items)
+    return pool, iter(flist)
 
 def get_data(item: Tuple[int, Path]) -> pd.DataFrame:
     block_id, path = item
     schema = get_schema(DATASET)
 
     # Read a single file
-    print(pd.read_csv(path, nrows=5).columns)
+    #print(pd.read_csv(path, nrows=5).columns)
     f_df = pd.read_csv(path,
                        sep=schema["sep"],
                        usecols=schema["usecols"],
@@ -65,13 +65,13 @@ def get_data(item: Tuple[int, Path]) -> pd.DataFrame:
 ###############################################################################
 # Filtering preliminary preprocessed data
 ###############################################################################
-def get_files_from(_date):
-    """Load a list of file from the starting day to the previous 30th one.
+def get_files_from(_blocks: dict[int, Path]):
+    """Load a list of file from the starting block to the previous.
 
     Parameters
     ----------
     _date : str
-        starting date of file loading
+        starting block of file loading
 
     Returns
     -------
@@ -79,29 +79,35 @@ def get_files_from(_date):
         list of files to load
 
     """
-    start = datetime.strptime(_date, '%Y%m%d')
+
     flist = []
     
-    for d in range(30):
-        target = start-timedelta(days=d)
-        target = target.strftime('%Y%m%d')
+    for i in range(len(_blocks)):
         
-        for fs in glob(f'{TRACES}/{target}*'):
-            flist.append(fs)
-        if target == LOWER_BOUND: break
-    
+        flist.append(_blocks[i+1])
+        
+        #for fs in glob(f'{TRACES}/{target}*'):
     return flist
 
-def count_daily_ips(x):
-    df = pd.read_csv(x, sep=' ')['src_ip']
+def count_block_ips(x):
+    # read_csvの引数をschemaから取る
+    schema = get_schema(DATASET)
+
+    df = pd.read_csv(x,
+                     sep=schema['sep'],
+                     usecols=schema['ip_col'],
+                     skipinitialspace=True)
     
     return df
 
-def load_filter_from_chunk(day):
-    pool, iterable = pool_setup(get_files_from(day))
-    df_list = pool.map(count_daily_ips, iterable)
+def load_filter_from_chunk(blocks):
+    #flist = sorted(blocks.items()) 
+    schema = get_schema(DATASET)
+
+    pool, iterable = pool_setup(get_files_from(blocks))
+    df_list = pool.map(count_block_ips, iterable)
     pool.close()
-    counts = pd.concat(df_list).reset_index().value_counts('src_ip')
+    counts = pd.concat(df_list).reset_index().value_counts(schema['ip_col'][0])
 
     return set(counts[counts>=10].index)
 
@@ -110,24 +116,27 @@ def load_filter_from_chunk(day):
 # Main functions
 ###############################################################################
 def load_raw_data(blocks: dict[int, Path]):
-    pool, iterable = pool_setup(blocks)
+    flist = sorted(blocks.items()) 
+
+    pool, iterable = pool_setup(flist)
     df_list = pool.map(get_data, iterable)
     pool.close()
     pool.join()
     raw_data = pd.concat(df_list)
     return raw_data
-breakpoint()
 
-def filter_data(raw_data, day_to_filter):
+def filter_data(raw_data, block_to_filter):
     #10回以上出現するIPアドレスを抽出
-    filt = load_filter_from_chunk(day_to_filter)
+    filt = load_filter_from_chunk(block_to_filter)
     # Filter IPS
     filtered = raw_data[raw_data.ip.isin(set(filt))]
-    # Datetime index
+    # Datetime index (TODO: datetime index処理が必要かの考慮)
     filtered.index = pd.DatetimeIndex(filtered.ts)
     filtered = filtered.sort_index()
         
     return filtered
+
+breakpoint()
 
 def get_next_day(start):
     start = datetime.strptime(start, '%Y%m%d')
