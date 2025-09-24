@@ -29,6 +29,4 @@ SERVICES = f'{DATA}/services/services.json'
 ###############################################################################
 with open(SERVICES, 'r') as file:
     LANGUAGES = json.loads(file.read())
-    
 
-LOWER_BOUND = '20210302'
