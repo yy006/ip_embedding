@@ -137,7 +137,7 @@ def filter_data(raw_data, block_to_filter):
         
     return filtered
 
-breakpoint()
+#breakpoint()
 
 def get_next_day(start):
     start = datetime.strptime(start, '%Y%m%d')

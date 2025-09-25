@@ -1,3 +1,4 @@
+from multiprocessing import Pool, cpu_count
 import json
 import importlib
 from pathlib import Path
@@ -25,6 +26,24 @@ class TestGetSchema:
             m.get_schema("UNKNOWN-DATASET")
         assert "Unknown dataset 'UNKNOWN-DATASET'" in str(excinfo.value)
 
+class TestPoolSetup:
+    def test_pool_setup_with_few_files(self):
+        flist = [Path(f"file_{i}.csv") for i in range(2)]
+        pool, it = m.pool_setup(flist)
+        print(pool)
+        assert pool._processes == 2
+        assert list(it) == flist
+        pool.close()
+        pool.join()
+
+    def test_pool_setup_with_many_files(self):
+        flist = [Path(f"file_{i}.csv") for i in range(100)]
+        pool, it = m.pool_setup(flist)
+        print(pool)
+        assert pool._processes <= cpu_count()
+        assert list(it) == flist
+        pool.close()
+        pool.join()
 
 class TestMainFunction:
     def test_main(self):
