@@ -29,6 +29,7 @@ class TestGetSchema:
 class TestPoolSetup:
     def test_pool_setup_with_few_files(self):
         flist = [Path(f"file_{i}.csv") for i in range(2)]
+
         pool, it = m.pool_setup(flist)
         print(pool)
         assert pool._processes == 2
@@ -38,13 +39,30 @@ class TestPoolSetup:
 
     def test_pool_setup_with_many_files(self):
         flist = [Path(f"file_{i}.csv") for i in range(100)]
+
         pool, it = m.pool_setup(flist)
         print(pool)
         assert pool._processes <= cpu_count()
         assert list(it) == flist
         pool.close()
         pool.join()
+        
+class TestGetData:
+    def test_get_data_correctly_processes_file(self):
+        """
+        get_data が正しくデータを読み込み、前処理を行うこと
+        """
+        path = Path('datasets/UNSW-NB15/top30.csv')
 
-class TestMainFunction:
-    def test_main(self):
-        assert 10==10
+        out_df = m.get_data(path)
+
+        for col in ['ts', 'ip', 'port', 'proto', 'pp']:
+            assert col in out_df.columns
+
+        assert out_df['proto'].isin(['tcp', 'udp', 'icmp', 'oth']).all()
+
+        # 未知のプロトコルが 'oth' にマッピングされていること(1行のみ追加してある)
+        assert (out_df["proto"] == "oth").sum() == 1
+
+        # 読み込んだデータが29行であること
+        assert out_df.shape[0] == 29

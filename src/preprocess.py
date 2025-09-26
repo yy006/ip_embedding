@@ -26,7 +26,7 @@ def get_schema(dataset: str) -> Dict[str, Any]:
     except KeyError as e:
         raise ValueError(f"Unknown dataset '{dataset}'. Available: {list(SCHEMA_REGISTRY)}") from e
 
-def pool_setup(flist: list):
+def pool_setup(flist: list) -> Tuple[Pool, Any]:
     cpus = len(flist)
     if len(flist)>cpu_count(): cpus = cpu_count()
     try:
@@ -36,8 +36,7 @@ def pool_setup(flist: list):
     
     return pool, iter(flist)
 
-def get_data(item: Tuple[int, Path]) -> pd.DataFrame:
-    block_id, path = item
+def get_data(path: Path) -> pd.DataFrame:
     schema = get_schema(DATASET)
 
     # Read a single file
@@ -61,7 +60,7 @@ def get_data(item: Tuple[int, Path]) -> pd.DataFrame:
     # Convert timestamps
     #f_df.ts = f_df.ts.apply(lambda x: datetime.fromtimestamp(x))
     
-    return f_df.assign(block=block_id)
+    return f_df
 
 ###############################################################################
 # Filtering preliminary preprocessed data
@@ -116,8 +115,12 @@ def load_filter_from_chunk(blocks):
 ###############################################################################
 # Main functions
 ###############################################################################
-def load_raw_data(blocks: dict[int, Path]):
-    flist = sorted(blocks.items()) 
+def load_raw_data(block_number):
+    if TRAINING_MODE == "single":
+        flist = [BLOCKS[k] for k in block_number]
+
+    elif TRAINING_MODE == "incremental":
+        flist = [BLOCKS[block_number]]
 
     pool, iterable = pool_setup(flist)
     df_list = pool.map(get_data, iterable)
@@ -125,6 +128,8 @@ def load_raw_data(blocks: dict[int, Path]):
     pool.join()
     raw_data = pd.concat(df_list)
     return raw_data
+
+breakpoint()
 
 def filter_data(raw_data, block_to_filter):
     #10回以上出現するIPアドレスを抽出
