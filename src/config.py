@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Literal
 
 ###############################################################################
 # Global path of the raw darknet traces
@@ -21,8 +22,12 @@ BLOCKS: dict[int, Path] = {
 #GRAPHS = f'{DATA}/graphs'
 #DATASETS = f'{DATA}/interim'
 SERVICES = f'{DATA}/services/services.json'
+
+TrainingMode = Literal["single", "incremental"]
+TRAINING_MODE: TrainingMode = "incremental"
 #GT = f'{DATA}/groundtruth/ground_truth_full.csv.gz'
 #MANUAL_GT = f'{DATA}/groundtruth/manual_gt.csv'
+
 
 ###############################################################################
 # Domain knowledge based services

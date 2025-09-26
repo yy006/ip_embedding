@@ -7,6 +7,7 @@ def pytest_sessionstart(session):
     fake.ROOT = Path(__file__).resolve().parents[1]
     fake.DATASET = "UNSW-NB15"
     fake.DATA = fake.ROOT/'datasets'/fake.DATASET
-    fake.BLOCKS = {1: fake.DATA/"b1.csv", 2: fake.DATA/"b2.csv", 3: fake.DATA/"b3.csv"}
+    fake.BLOCKS = {1: fake.DATA/"b1.csv", 2: fake.DATA/"b2.csv", 3: fake.DATA/"b3.csv", 4: fake.DATA/"top30.csv"}
     fake.SERVICES = fake.DATA/'services/services.json'
+    fake.TRAINING_MODE = "incremental"
     sys.modules["config"] = fake
