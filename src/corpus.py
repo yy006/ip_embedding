@@ -13,7 +13,6 @@ def drop_duplicates(corpus):
     
     return new_corpus
 
-
 def get_top_ports(dev, TOP):
     try: dev = dev.drop(columns=['serv'])
     except: pass
