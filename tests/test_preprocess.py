@@ -1,6 +1,7 @@
 from multiprocessing import Pool, cpu_count
 import json
 import importlib
+import pandas as pd
 from pathlib import Path
 import pytest
 import src.preprocess as m
@@ -66,3 +67,51 @@ class TestGetData:
 
         # 読み込んだデータが29行であること
         assert out_df.shape[0] == 29
+
+class TestLoadRawData:
+    def test_load_raw_data_correctly_loads_and_processes(self):
+        """
+        load_raw_data が正しくデータを読み込み、前処理を行うこと
+        """
+
+        out_df = m.load_raw_data(1)
+        out_df_head = out_df.head(3)
+
+        expected_head = pd.DataFrame({
+            'ip': ['192.168.10.50', '192.168.10.50', '8.6.0.1'],
+            'port': [389, 389, 0],
+            'proto': ['tcp', 'tcp', 'oth'],
+            'ts': ['6/7/2017 8:59', '6/7/2017 8:59', '6/7/2017 8:59'],
+            'Total Length of Fwd Packets': [9668, 11364, 0],
+            'pp': ['389/tcp', '389/tcp', '0/oth']
+            })
+        
+        assert out_df_head.equals(expected_head)
+        assert out_df.shape == (29, 6)
+
+class TestFilterData:
+    def test_filter_data_correctly_filters_by_ip(self):
+        """
+        filter_data が正しくIPでフィルタリングを行うこと
+        """
+        BLOCKS = {1: Path('datasets/UNSW-NB15/top30.csv'),
+                  2: Path('datasets/UNSW-NB15/top30.csv_2')}
+
+        raw_df = m.load_raw_data(1)
+        filtered_df = m.filter_data(raw_df, BLOCKS, 1)
+        filtered_df_head = filtered_df.head(3)
+
+        expected_head = pd.DataFrame({
+            'ip': ['192.168.10.19', '192.168.10.19', '192.168.10.19'],
+            'port': [5353, 53, 123],
+            'proto': ['udp', 'udp', 'udp'],
+            'ts': ['6/7/2017 9:00', '6/7/2017 9:00', '6/7/2017 9:00'],
+            'Total Length of Fwd Packets': [26257, 46, 672],
+            'pp': ['5353/udp', '53/udp', '123/udp']
+            })
+        expected_head = expected_head.set_index(pd.to_datetime(expected_head['ts']))
+
+        assert filtered_df_head.equals(expected_head)
+        assert filtered_df.shape == (16, 6)
+        assert filtered_df['ip'].unique() == '192.168.10.19'
+

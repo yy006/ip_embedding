@@ -65,7 +65,7 @@ def get_data(path: Path) -> pd.DataFrame:
 ###############################################################################
 # Filtering preliminary preprocessed data
 ###############################################################################
-def get_files_from(_blocks: dict[int, Path]):
+def get_files_from(blocks, block_number):
     """Load a list of file from the starting block to the previous.
 
     Parameters
@@ -82,9 +82,9 @@ def get_files_from(_blocks: dict[int, Path]):
 
     flist = []
     
-    for i in range(len(_blocks)):
+    for i in range(block_number):
         
-        flist.append(_blocks[i+1])
+        flist.append(blocks[i+1])
         
         #for fs in glob(f'{TRACES}/{target}*'):
     return flist
@@ -100,11 +100,11 @@ def count_block_ips(x):
     
     return df
 
-def load_filter_from_chunk(blocks):
+def load_filter_from_chunk(blocks, block_number):
     #flist = sorted(blocks.items()) 
     schema = get_schema(DATASET)
 
-    pool, iterable = pool_setup(get_files_from(blocks))
+    pool, iterable = pool_setup(get_files_from(blocks, block_number))
     df_list = pool.map(count_block_ips, iterable)
     pool.close()
     counts = pd.concat(df_list).reset_index().value_counts(schema['ip_col'][0])
@@ -129,11 +129,11 @@ def load_raw_data(block_number):
     raw_data = pd.concat(df_list)
     return raw_data
 
-breakpoint()
+#breakpoint()
 
-def filter_data(raw_data, block_to_filter):
+def filter_data(raw_data, blocks, block_number):
     #10回以上出現するIPアドレスを抽出
-    filt = load_filter_from_chunk(block_to_filter)
+    filt = load_filter_from_chunk(blocks, block_number)
     # Filter IPS
     filtered = raw_data[raw_data.ip.isin(set(filt))]
     # Datetime index (TODO: datetime index処理が必要かの考慮)
