@@ -1,5 +1,6 @@
 import sys, types
 from pathlib import Path
+import json
 
 def pytest_sessionstart(session):
     # テスト用の軽い config モジュールを作って sys.modules に登録
@@ -11,3 +12,7 @@ def pytest_sessionstart(session):
     fake.SERVICES = fake.DATA/'services/services.json'
     fake.TRAINING_MODE = "incremental"
     sys.modules["config"] = fake
+
+    # LANGUAGES
+    with open(fake.SERVICES, 'r') as file:
+        fake.LANGUAGES = json.loads(file.read())
