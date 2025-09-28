@@ -1,2 +1,3 @@
 pytest
 pandas
+gensim==4.3.3

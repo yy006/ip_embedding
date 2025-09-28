@@ -4,10 +4,15 @@
 #
 #    pip-compile requirements.in
 #
+gensim==4.3.3
+    # via -r requirements.in
 iniconfig==2.1.0
     # via pytest
-numpy==2.3.3
-    # via pandas
+numpy==1.26.4
+    # via
+    #   gensim
+    #   pandas
+    #   scipy
 packaging==25.0
     # via pytest
 pandas==2.3.2
@@ -22,7 +27,13 @@ python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
     # via pandas
+scipy==1.13.1
+    # via gensim
 six==1.17.0
     # via python-dateutil
+smart-open==7.3.1
+    # via gensim
 tzdata==2025.2
     # via pandas
+wrapt==1.17.3
+    # via smart-open
