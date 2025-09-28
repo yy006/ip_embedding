@@ -5,7 +5,6 @@ from src.word2vec import Word2Vec
 import numpy as np
 import time
 
-
 def update_runtimes(key, val):
     
     RUNTIMES = f'{DATASETS}/runtimes_new.json'

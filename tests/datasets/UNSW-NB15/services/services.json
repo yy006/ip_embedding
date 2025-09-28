@@ -1,0 +1,22 @@
+{
+    "http": {
+        "port": 80,
+        "description": "HyperText Transfer Protocol"
+    },
+    "https": {
+        "port": 443,
+        "description": "Secure HyperText Transfer Protocol"
+    },
+    "ftp": {
+        "port": 21,
+        "description": "File Transfer Protocol"
+    },
+    "ssh": {
+        "port": 22,
+        "description": "Secure Shell"
+    },
+    "dns": {
+        "port": 53,
+        "description": "Domain Name System"
+    }
+}
