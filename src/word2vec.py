@@ -11,8 +11,8 @@ class Word2Vec():
         self.model = None
 
     def train(self, corpus, save=False):
-        self.model = W2V(sentences=corpus, size=self.embedding_size, 
-                         window=self.context_window, iter=self.epochs, 
+        self.model = W2V(sentences=corpus, vector_size=self.embedding_size, 
+                         window=self.context_window, epochs=self.epochs, 
                          workers=cpu_count(), min_count=0, sg=1, negative=5, 
                          sample=0, seed=15)
         
@@ -40,3 +40,20 @@ class Word2Vec():
                          epochs=self.epochs)
         if save:
             self.model.save(f'{self.mname}.model')
+
+
+    def __repr__(self):
+        # ユーザー定義パラメータ名の違いに配慮（embedding_size/e, context_window/c など）
+        emb = getattr(self, "embedding_size", getattr(self, "e", None))
+        ctx = getattr(self, "context_window", getattr(self, "c", None))
+        eps = getattr(self, "epochs", None)
+        name = getattr(self, "mname", None)
+
+        if getattr(self, "model", None) is not None:
+            vocab = len(self.model.wv)
+            vsize = self.model.vector_size
+            return (f"Word2Vec(model=gensim, mname={name}, vector_size={vsize}, "
+                    f"window={ctx}, epochs={eps}, vocab_size={vocab})")
+        else:
+            return (f"Word2Vec(model=None, mname={name}, embedding_size={emb}, "
+                    f"window={ctx}, epochs={eps})")
