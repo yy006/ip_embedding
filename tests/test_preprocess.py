@@ -86,6 +86,9 @@ class TestLoadRawData:
             'pp': ['389/tcp', '389/tcp', '0/oth']
             })
         
+        # 期待値の ts を datetime に変換（米式: 月/日/年）
+        expected_head['ts'] = pd.to_datetime(expected_head['ts'], format='%m/%d/%Y %H:%M')
+        
         assert out_df_head.equals(expected_head)
         assert out_df.shape == (29, 6)
 
@@ -110,6 +113,8 @@ class TestFilterData:
             'pp': ['5353/udp', '53/udp', '123/udp']
             })
         expected_head = expected_head.set_index(pd.to_datetime(expected_head['ts']))
+        # 期待値の ts を datetime に変換（米式: 月/日/年）
+        expected_head['ts'] = pd.to_datetime(expected_head['ts'], format='%m/%d/%Y %H:%M')
 
         assert filtered_df_head.equals(expected_head)
         assert filtered_df.shape == (16, 6)

@@ -1,5 +1,6 @@
 from multiprocessing import Pool, cpu_count
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
 from glob import glob
@@ -58,7 +59,14 @@ def get_data(path: Path) -> pd.DataFrame:
     # Merge port and protocol as 'port/protocol'
     f_df['pp'] = f_df.port.astype(str)+"/"+f_df.proto
     # Convert timestamps
-    #f_df.ts = f_df.ts.apply(lambda x: datetime.fromtimestamp(x))
+        # ここを置き換え
+    s = f_df["ts"]
+    if np.issubdtype(s.dtype, np.number):
+        # ts が 1496825940 のような数値（UNIX秒）
+        f_df["ts"] = pd.to_datetime(s, unit="s")
+    else:
+        # ts が '6/7/2017 8:59' のような文字列
+        f_df["ts"] = pd.to_datetime(s, infer_datetime_format=True, errors="raise")
     
     return f_df
 
