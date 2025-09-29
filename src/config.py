@@ -28,6 +28,8 @@ TRAINING_MODE: TrainingMode = "incremental"
 #GT = f'{DATA}/groundtruth/ground_truth_full.csv.gz'
 #MANUAL_GT = f'{DATA}/groundtruth/manual_gt.csv'
 
+ARTIFACTS_ROOT = Path(ROOT) / "experiments"
+
 
 ###############################################################################
 # Domain knowledge based services
