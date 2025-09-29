@@ -13,7 +13,7 @@ class TestGetSchema:
         """
         schema = m.get_schema("UNSW-NB15")
         assert schema == {
-            "usecols": ['Timestamp', 'Source IP', 'Destination Port', 'Protocol', 'Total Length of Fwd Packets'],
+            "usecols": ['Timestamp', 'Source IP', 'Destination Port', 'Protocol'],
             "rename": {'Timestamp': 'ts', 'Source IP': 'ip', 'Destination Port': 'port', 'Protocol': 'proto'},
             "sep": ',',
             "ip_col": ['Source IP'],
@@ -82,7 +82,6 @@ class TestLoadRawData:
             'port': [389, 389, 0],
             'proto': ['tcp', 'tcp', 'oth'],
             'ts': ['6/7/2017 8:59', '6/7/2017 8:59', '6/7/2017 8:59'],
-            'Total Length of Fwd Packets': [9668, 11364, 0],
             'pp': ['389/tcp', '389/tcp', '0/oth']
             })
         
@@ -90,7 +89,7 @@ class TestLoadRawData:
         expected_head['ts'] = pd.to_datetime(expected_head['ts'], format='%m/%d/%Y %H:%M')
         
         assert out_df_head.equals(expected_head)
-        assert out_df.shape == (29, 6)
+        assert out_df.shape == (29, 5)
 
 class TestFilterData:
     def test_filter_data_correctly_filters_by_ip(self):
@@ -109,7 +108,6 @@ class TestFilterData:
             'port': [5353, 53, 123],
             'proto': ['udp', 'udp', 'udp'],
             'ts': ['6/7/2017 9:00', '6/7/2017 9:00', '6/7/2017 9:00'],
-            'Total Length of Fwd Packets': [26257, 46, 672],
             'pp': ['5353/udp', '53/udp', '123/udp']
             })
         expected_head = expected_head.set_index(pd.to_datetime(expected_head['ts']))
@@ -117,6 +115,6 @@ class TestFilterData:
         expected_head['ts'] = pd.to_datetime(expected_head['ts'], format='%m/%d/%Y %H:%M')
 
         assert filtered_df_head.equals(expected_head)
-        assert filtered_df.shape == (16, 6)
+        assert filtered_df.shape == (16, 5)
         assert filtered_df['ip'].unique() == '192.168.10.19'
 
