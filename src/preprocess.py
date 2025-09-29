@@ -13,10 +13,10 @@ from typing import Tuple, Dict, Any
 
 SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UNSW-NB15": {
-        "usecols": ['Timestamp', 'Source IP', 'Destination Port', 'Protocol', 'Total Length of Fwd Packets'],
-        "rename": {'Timestamp': 'ts', 'Source IP': 'ip', 'Destination Port': 'port', 'Protocol': 'proto'},
+        "usecols": ['Timestamp', 'Src IP Addr', 'Src Pt', 'Dst IP Addr', 'Dst Pt', 'Proto'],
+        "rename": {'Timestamp': 'ts', 'Src IP Addr': 'ip', 'Dst Pt': 'port', 'Proto': 'proto'},
         "sep": ',',
-        "ip_col": ['Source IP'],
+        "ip_col": ['Src IP Addr'],
     }
 }
 
@@ -125,7 +125,7 @@ def load_filter_from_chunk(blocks, block_number):
 ###############################################################################
 def load_raw_data(block_number):
     if TRAINING_MODE == "single":
-        flist = [BLOCKS[k] for k in block_number]
+        flist = [BLOCKS[k+1] for k in range(block_number)]
 
     elif TRAINING_MODE == "incremental":
         flist = [BLOCKS[block_number]]
