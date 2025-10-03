@@ -2,6 +2,7 @@ import pandas as pd
 
 # 入力
 in_csv  = 'UNSW-NB15_2_5tuple_by2h/2015021802_2015021804_by2h.csv'
+#in_csv  = "UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012218_2015012220_by2h.csv"
 out_csv = "out.csv"
 
 ip_col    = "Src IP Addr"

@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 入力
-in_csv  = "out.csv"
+in_csv  = "UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015021802_2015021804_by2h.csv"
 out_csv = "counts_by_hour_and_class.csv"
 
 ip_col    = "Src IP Addr"
