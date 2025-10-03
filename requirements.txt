@@ -8,10 +8,13 @@ gensim==4.3.3
     # via -r requirements.in
 iniconfig==2.1.0
     # via pytest
+joblib==1.5.2
+    # via scikit-learn
 numpy==1.26.4
     # via
     #   gensim
     #   pandas
+    #   scikit-learn
     #   scipy
 packaging==25.0
     # via pytest
@@ -27,12 +30,18 @@ python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
     # via pandas
+scikit-learn==1.5.2
+    # via -r requirements.in
 scipy==1.13.1
-    # via gensim
+    # via
+    #   gensim
+    #   scikit-learn
 six==1.17.0
     # via python-dateutil
 smart-open==7.3.1
     # via gensim
+threadpoolctl==3.6.0
+    # via scikit-learn
 tzdata==2025.2
     # via pandas
 wrapt==1.17.3
