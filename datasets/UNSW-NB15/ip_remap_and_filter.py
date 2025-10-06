@@ -1,12 +1,12 @@
 import pandas as pd
 
 # 入力
-in_csv  = 'UNSW-NB15_2_5tuple_by2h/2015021802_2015021804_by2h.csv'
+in_csv  = 'UNSW-NB15_4_with_class_name.csv'
 #in_csv  = "UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012218_2015012220_by2h.csv"
-out_csv = "out.csv"
+out_csv = "UNSW-NB15_4_with_class_name_ipmap59to175_drop175benign.csv"
 
-ip_col    = "Src IP Addr"
-label_col = "class"
+ip_col    = "srcip"
+label_col = "attack_cat"
 
 import pandas as pd
 from pathlib import Path
@@ -17,7 +17,7 @@ SRC_IPS = {f"59.166.0.{i}"   for i in range(4)}         # 59.166.0.0~3
 MAP_59_TO_175 = {f"59.166.0.{i}": f"175.45.176.{i}" for i in range(4)}
 
 # ========= 読み込み =========
-df = pd.read_csv(in_csv, low_memory=False)
+df = pd.read_csv(in_csv, low_memory=False, )
 df.columns = df.columns.str.strip()
 for c in (ip_col, label_col):
     if c not in df.columns:

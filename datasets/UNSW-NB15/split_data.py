@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-in_csv   = "5tuple_data/UNSW-NB15_2_5tuple.csv"             # 入力
+in_csv   = "UNSW-NB15_2_with_class_name_ipmap59to175_drop175benign.csv"             # 入力
 out_dir  = Path("by2h")                     # 出力先ディレクトリ
 prefix   = "datasetX"                       # ファイル名プレフィックス（任意に変更）
 
