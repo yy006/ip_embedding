@@ -5,7 +5,8 @@ from typing import Dict, Tuple, List, Optional
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-EXPERIMENT = '2025-09-30T05-43-47_incremental_ryqsrg6y'
+#EXPERIMENT = '2025-09-30T05-43-47_incremental_ryqsrg6y'
+EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 with open(json_path, 'r') as f:
     config = json.load(f)
@@ -20,7 +21,7 @@ def load_embeddings(path: str | Path):
     print (obj)
     return obj
 
-model = load_embeddings(config['results']['blocks']['005']['model']['model_path'])
+model = load_embeddings(config['results']['blocks']['001']['model']['model_path'])
 
 def set_labels():
     # embのkeyに存在するIPアドレスの中で、175.45.176.0~3はAttack, それ以外はBenign
