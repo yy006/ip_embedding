@@ -17,3 +17,12 @@
   ],
   "notes": "CAT=['proto', 'state', 'service'], NUM=['dur', 'sbytes', 'dbytes', 'sttl', 'dttl', 'sloss', 'dloss', 'Sload', 'Dload', 'Spkts', 'Dpkts', 'swin', 'dwin', 'stcpb', 'dtcpb', 'smeansz', 'dmeansz', 'trans_depth', 'res_bdy_len', 'Sjit', 'Djit'], EMBED_DIM=10"
 }
+
+         precision: 0.5100
+            recall: 0.7990
+                f1: 0.6226
+          accuracy: 0.8395
+       specificity: 0.8475
+               fpr: 0.1525
+               fnr: 0.2010
+ balanced_accuracy: 0.8233
