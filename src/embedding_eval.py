@@ -5,8 +5,8 @@ from typing import Dict, Tuple, List, Optional
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-#EXPERIMENT = '2025-09-30T05-43-47_incremental_ryqsrg6y'
-EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
+EXPERIMENT = '2025-10-07T01-58-10_single_qm1um8tv'
+#EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 with open(json_path, 'r') as f:
     config = json.load(f)
@@ -177,4 +177,9 @@ def loocv_knn(model, labels, k_list=(1,3,5)):
     return results
 
 results = loocv_knn(model, labels, k_list=(1,2,3,4,5))
-print(results)
+
+# 結果をcsvに保存
+import pandas as pd
+
+results_df = pd.DataFrame.from_dict(results, orient='index')
+results_df.to_csv('embedding_eval_results.csv')
