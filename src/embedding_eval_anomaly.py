@@ -21,14 +21,14 @@ from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-EXPERIMENT = '2025-10-07T19-47-12_incremental_8li7mu1w'
-#EXPERIMENT = '2025-10-07T01-57-11_incremental_jk7mc49n'
+#EXPERIMENT = '2025-10-09T01-04-18_single_e2nnxmjs'
+EXPERIMENT = '2025-10-07T01-57-11_incremental_jk7mc49n'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
 # ========= ここだけ編集してください =========
 INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
-OUT_DIR        = f"{EXPERIMENT}_005_out_run"
+OUT_DIR        = f"{EXPERIMENT}_0_0_3_out_run"
 TEST_SIZE      = 0.2
 RANDOM_STATE   = 42
 
@@ -36,7 +36,12 @@ with open(json_path, 'r') as f:
     config = json.load(f)
 
 # 埋め込みのパス
-EMBED_PKL = config['results']['blocks']['005']['model']['model_path']
+#EMBED_PKL_TRAIN = config['results']['blocks']['005']['model']['model_path']
+#EMBED_PKL_TEST  = config['results']['blocks']['005']['model']['model_path']
+#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-09T01-04-18_single_e2nnxmjs/models/model_block_001"   
+#EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-09-30T05-54-05_single_4vfhlp7f/models/model_block_001" 
+EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-07T01-57-11_incremental_jk7mc49n/models/model_block_004"
+EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-10-07T01-57-11_incremental_jk7mc49n/models/model_block_005"
 
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):
@@ -47,11 +52,12 @@ def load_embeddings(path: str | Path):
     print (obj)
     return obj
 
-model = load_embeddings(EMBED_PKL)
+model_train = load_embeddings(EMBED_PKL_TRAIN)
+model_test  = load_embeddings(EMBED_PKL_TEST)
 
 # 使う列 sttl抜き
-#USE_COLS = ["proto","state","dur", "sbytes","dbytes","sloss","dloss","service","Sload","Spkts","Dpkts","swin","dwin","stcpb","dtcpb","smeansz","trans_depth","res_bdy_len","Sjit","Djit"]
-USE_COLS =[]
+USE_COLS = ["proto","state","dur", "sbytes","dbytes","sloss","dloss","service","Sload","Spkts","Dpkts","swin","dwin","stcpb","dtcpb","smeansz","trans_depth","res_bdy_len","Sjit","Djit","sttl"]
+#USE_COLS =[]
 # ==========================================
 
 # ========= ここから追記 =========
@@ -223,42 +229,44 @@ if "Label" not in df.columns:
     raise KeyError("Label 列が見つかりません。列名を確認してください。")
 
 # 埋め込みインターフェース
-wv = get_embedding_interface(model)
-mean_vec = compute_mean_vector(wv)
+wv_train = get_embedding_interface(model_train)
+wv_test  = get_embedding_interface(model_test)
+mean_vec_train = compute_mean_vector(wv_train)
+mean_vec_test  = compute_mean_vector(wv_test)
 
-# 埋め込み付与（srcip のみ）
-df, emb_cols = attach_srcip_embedding(df, wv, mean_vec, ip_col="srcip")
-
-# 使う列（存在確認）
+# 使う列（存在確認）— まずは“元特徴のみ”で判定（埋め込みは後で付与）
 USE_COLS = select_existing_columns(df, USE_COLS)
-# カテゴリ/数値の自動判定（与えられた想定通り）
+# カテゴリ/数値の自動判定（元特徴のみ）
 CAT_COLS = [c for c in ["proto", "state", "service"] if c in USE_COLS]
 NUM_COLS = [c for c in USE_COLS if c not in CAT_COLS]
-# 埋め込み列は数値として常に使用
-ALL_NUM_COLS = NUM_COLS + emb_cols
 
-# 学習/評価用に必要なカラムだけサブセット
-need_cols = ["Label"] + CAT_COLS + ALL_NUM_COLS
+# 学習/評価用に必要なカラム（埋め込み付与用に srcip を残す）
+need_cols = ["Label", "srcip"] + CAT_COLS + NUM_COLS
 work = df[need_cols].copy()
+
+X = work.drop(columns=["Label"])
+y = work["Label"].astype(int)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
+)
+# ========= 埋め込みを train/test で別モデルから付与 =========
+# （emb_cols の列名は train 側の次元に合わせて共通化）
+X_train, emb_cols = attach_srcip_embedding(X_train.copy(), wv_train, mean_vec_train, ip_col="srcip")
+X_test,  _        = attach_srcip_embedding(X_test.copy(),  wv_test,  mean_vec_test,  ip_col="srcip")
+
+# 学習に srcip 本体は使わない（列指定に含めない）
+ALL_NUM_COLS = NUM_COLS + emb_cols
 
 # ========= 変換パイプライン（OneHotEncoderはdense出力にしてHGBに対応） =========
 cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-num_transformer = "passthrough"  # 標準化は木系では必須でないので省略（必要なら StandardScaler に変更可）
-
+num_transformer = "passthrough"  # 標準化は木系では必須でないので省略
 preprocess = ColumnTransformer(
     transformers=[
         ("cat", cat_transformer, CAT_COLS),
         ("num", num_transformer, ALL_NUM_COLS),
     ],
     remainder="drop",
-)
-
-# ========= スプリット =========
-X = work.drop(columns=["Label"])
-y = work["Label"].astype(int)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
 )
 
 # ========= 1) 正常のみで学習する異常検知（IsolationForest） =========
@@ -295,8 +303,8 @@ try:
 except ValueError:
     ap_if = None
 
-# 閾値は 0（= decision_function<0 を異常）相当
-y_pred_if = (anom_score > 0).astype(int)
+# 閾値は 0（= decision_function<0.03 を異常）相当
+y_pred_if = (anom_score > 0.03).astype(int)
 cm_if = confusion_matrix(y_test, y_pred_if).tolist()
 
 rep_if = RunReport(

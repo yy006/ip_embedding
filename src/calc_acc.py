@@ -33,14 +33,8 @@ def metrics_from_confusion(cm):
 
 # 使用例（あなたが提示した混合行列）
 cm = [
-    [
-      26365,
-      4744
-    ],
-    [
-      1242,
-      4938
-    ]
+  [ 9368, 21741],
+ [    0,  6180]
 ]
 m = metrics_from_confusion(cm)
 

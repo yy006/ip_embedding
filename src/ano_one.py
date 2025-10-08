@@ -143,3 +143,50 @@ print("Confusion Matrix (threshold=0.5):")
 print(cm_sup)
 print()
 # 結果の保存
+
+def single_feature_auc(col):
+    """
+    HGBの前処理(prep)でフルデータを変換→対象列に対応する展開後の列だけ使って
+    軽い分類器(LogReg)を学習し、単一特徴のAUCを返す。
+    ※ pipe_hgb.fit(...) 実行後に呼んでください。
+    """
+    prep = pipe_hgb.named_steps["prep"]
+    # フルを一度だけ変換
+    Xt_tr = prep.transform(X_train)
+    Xt_te = prep.transform(X_test)
+    # 展開後の列名を取得
+    try:
+        out_names = prep.get_feature_names_out(X.columns)
+    except Exception:
+        # 古いsklearn用フォールバック
+        out_names = []
+        for name, trans, cols in prep.transformers_:
+            if name == "remainder" and trans == "drop":
+                continue
+            if hasattr(trans, "get_feature_names_out"):
+                base = trans.get_feature_names_out(cols)
+                out_names.extend([f"{name}__{b}" for b in base])
+            else:
+                out_names.extend([f"{name}__{c}" for c in cols])
+        out_names = np.array(out_names, dtype=object)
+    # 対象列に対応する展開後インデックス（OneHotは複数列）
+    if col in CAT_COLS:
+        prefix = f"cat__{col}_"
+        mask = np.array([n.startswith(prefix) for n in out_names])
+    else:
+        prefix = f"num__{col}"
+        mask = (out_names == prefix)
+    idx = np.where(mask)[0]
+    if idx.size == 0:
+        print(f"[WARN] no expanded features for {col}")
+        return np.nan
+    # 単一特徴（展開後の該当列群）のみで小さなモデルを学習
+    from sklearn.linear_model import LogisticRegression
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(Xt_tr[:, idx], y_train)
+    prob = clf.predict_proba(Xt_te[:, idx])[:, 1]
+    return roc_auc_score(y_test, prob)
+
+for col in ["src_emb_0","src_emb_28"]:
+    if col in X_test.columns:
+        print(col, single_feature_auc(col))

@@ -9,8 +9,8 @@ from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
 
 SAVE = True
 
-params = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':50},
-       'word2vec':{'c':25, 'e':32, 'epochs':3, 'method':'incremental'}}]
+params = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':300},
+       'word2vec':{'c':25, 'e':50, 'epochs':3, 'method':'incremental'}}]
 
 print(TRAINING_MODE)
 print(BLOCKS)
