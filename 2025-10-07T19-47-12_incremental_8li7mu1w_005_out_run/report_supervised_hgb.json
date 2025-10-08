@@ -1,0 +1,19 @@
+{
+  "setting": "supervised_hgb_classifier",
+  "n_train": 149156,
+  "n_test": 37289,
+  "roc_auc": 0.964214738843409,
+  "ap": 0.863770713483113,
+  "threshold_desc": "P(Attack) >= 0.5 を異常と判定",
+  "confusion": [
+    [
+      30407,
+      702
+    ],
+    [
+      1166,
+      5014
+    ]
+  ],
+  "notes": "CAT=[], NUM=['smeansz'], EMBED_DIM=32"
+}

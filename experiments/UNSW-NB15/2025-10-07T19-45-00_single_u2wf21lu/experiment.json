@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "run_id": "2025-10-07T19-45-00_single_u2wf21lu",
+  "dataset": "UNSW-NB15",
+  "mode": "single",
+  "started_at": "2025-10-07T19-45-00",
+  "blocks": {
+    "1": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012218_2015012220_by2h.csv",
+    "2": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "3": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "4": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "5": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "6": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "7": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "8": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "9": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012220_2015012222_by2h.csv",
+    "10": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012222_2015012300_by2h.csv",
+    "11": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015012300_2015012302_by2h.csv",
+    "12": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_5tuple_by2h_ipmap59to175_drop175benign/2015021800_2015021802_by2h.csv"
+  },
+  "params": {
+    "corpus": {
+      "services": "auto",
+      "without_duplicates": true,
+      "top_ports": 50
+    },
+    "word2vec": {
+      "c": 25,
+      "e": 10,
+      "epochs": 3,
+      "method": "incremental"
+    }
+  },
+  "results": {
+    "overall": {
+      "total_wall_time_sec": 18.942
+    },
+    "blocks": {
+      "001": {
+        "block_id": 1,
+        "wall_time_sec": 18.941,
+        "model": {
+          "vocab_size": 28,
+          "vector_size": 10,
+          "model_path": "/workspace/experiments/UNSW-NB15/2025-10-07T19-45-00_single_u2wf21lu/models/model_block_001",
+          "dict_path": "/workspace/experiments/UNSW-NB15/2025-10-07T19-45-00_single_u2wf21lu/dicts/dict_block_001.json"
+        },
+        "corpus_stats": {
+          "ndocs": 196,
+          "min_words": 1,
+          "avg_words": 5420.719387755102,
+          "max_words": 180423,
+          "min_unique_words": 1,
+          "avg_unique_words": 7.219387755102041,
+          "max_unique_words": 20
+        }
+      }
+    }
+  },
+  "finished_at": "2025-10-07T19-45-19"
+}

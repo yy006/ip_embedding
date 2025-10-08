@@ -10,7 +10,7 @@ from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
 SAVE = True
 
 params = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':50},
-       'word2vec':{'c':25, 'e':10, 'epochs':3, 'method':'incremental'}}]
+       'word2vec':{'c':25, 'e':32, 'epochs':3, 'method':'incremental'}}]
 
 print(TRAINING_MODE)
 print(BLOCKS)

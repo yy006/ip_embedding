@@ -3,11 +3,9 @@ import pickle
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 
-
-from pathlib import Path
-import json
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -15,21 +13,22 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     roc_auc_score, average_precision_score, precision_recall_curve,
-    confusion_matrix
+    confusion_matrix, roc_curve, make_scorer
 )
+from sklearn.inspection import permutation_importance
 from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-EXPERIMENT = '2025-10-07T10-48-21_incremental_g9yil884'
+EXPERIMENT = '2025-10-07T19-47-12_incremental_8li7mu1w'
 #EXPERIMENT = '2025-10-07T01-57-11_incremental_jk7mc49n'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
 # ========= ここだけ編集してください =========
 INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
-OUT_DIR        = f"{EXPERIMENT}_003_out_run"
+OUT_DIR        = f"{EXPERIMENT}_005_out_run"
 TEST_SIZE      = 0.2
 RANDOM_STATE   = 42
 
@@ -37,7 +36,7 @@ with open(json_path, 'r') as f:
     config = json.load(f)
 
 # 埋め込みのパス
-EMBED_PKL = config['results']['blocks']['003']['model']['model_path']
+EMBED_PKL = config['results']['blocks']['005']['model']['model_path']
 
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):
@@ -50,8 +49,9 @@ def load_embeddings(path: str | Path):
 
 model = load_embeddings(EMBED_PKL)
 
-# 使う列
-USE_COLS = ["proto","state","dur", "sbytes","dbytes","sttl","dttl","sloss","dloss","service","Sload","Dload","Spkts","Dpkts","swin","dwin","stcpb","dtcpb","smeansz","dmeansz","trans_depth","res_bdy_len","Sjit","Djit"]
+# 使う列 sttl抜き
+#USE_COLS = ["proto","state","dur", "sbytes","dbytes","sloss","dloss","service","Sload","Spkts","Dpkts","swin","dwin","stcpb","dtcpb","smeansz","trans_depth","res_bdy_len","Sjit","Djit"]
+USE_COLS =[]
 # ==========================================
 
 # ========= ここから追記 =========
@@ -116,6 +116,88 @@ def select_existing_columns(df: pd.DataFrame, want: List[str]) -> List[str]:
     if missing:
         print(f"[WARN] 入力CSVに存在しない列をスキップします: {missing}")
     return exist
+
+def save_and_print_roc(y_true, score, out_dir: Path, prefix: str):
+     """
+     y_true: 0/1（1=Attack=positive）
+     score : 大きいほど Attack である確率・スコア
+     """
+     try:
+         fpr, tpr, thr = roc_curve(y_true, score, pos_label=1)
+         auc = roc_auc_score(y_true, score)
+     except ValueError as e:
+         print(f"[{prefix}] ROCを計算できません: {e}")
+         return
+     # 1) コンソールに主要点を出す（頭2行＋末尾1行）
+     print(f"[{prefix}] ROC-AUC = {auc:.6f}")
+     print(f"[{prefix}] ROC head:")
+     for i in range(min(2, len(fpr))):
+         print(f"  thr={thr[i]:.6f}  fpr={fpr[i]:.6f}  tpr={tpr[i]:.6f}")
+     if len(fpr) > 0:
+         print(f"  ... last: thr={thr[-1]:.6f}  fpr={fpr[-1]:.6f}  tpr={tpr[-1]:.6f}")
+     # 2) CSV 保存
+     roc_df = pd.DataFrame({"threshold": thr, "fpr": fpr, "tpr": tpr})
+     roc_csv = out_dir / f"roc_{prefix}.csv"
+     roc_df.to_csv(roc_csv, index=False)
+     # 3) 図保存
+     plt.figure()
+     plt.plot(fpr, tpr, label=f"AUC={auc:.4f}")
+     plt.plot([0,1], [0,1], linestyle="--")
+     plt.xlabel("False Positive Rate")
+     plt.ylabel("True Positive Rate")
+     plt.title(f"ROC - {prefix}")
+     plt.legend(loc="lower right")
+     roc_png = out_dir / f"roc_{prefix}.png"
+     plt.savefig(roc_png, dpi=180, bbox_inches="tight")
+     plt.close()
+     print(f"[{prefix}] ROC CSV: {roc_csv}")
+     print(f"[{prefix}] ROC PNG: {roc_png}")
+
+def save_score_count_hist(y_true, score, out_dir: Path, prefix: str, *, bins: int = 50, thr: float | None = None):
+     """
+     異常スコア（または Attack 確率）を横軸とし、Attack/Benign の“件数”を同一ビンでカウントして
+     積み上げ棒グラフにして保存。あわせてCSV（各ビンの左端/右端と件数）を出力。
+     """
+     y_true = np.asarray(y_true)
+     score  = np.asarray(score)
+     if score.size == 0:
+         print(f"[{prefix}] empty score array; skip count hist.")
+         return
+     s_min, s_max = float(np.min(score)), float(np.max(score))
+     if s_min == s_max:
+         # スコアが全て同じ場合は±1e-6だけ広げる
+         s_min -= 1e-6
+         s_max += 1e-6
+     edges = np.linspace(s_min, s_max, bins + 1)
+     # 同じビン境界でBenign/Attackをカウント
+     cnt_benign, _ = np.histogram(score[y_true == 0], bins=edges)
+     cnt_attack, _ = np.histogram(score[y_true == 1], bins=edges)
+     mids = (edges[:-1] + edges[1:]) / 2.0
+     width = edges[1] - edges[0]
+     # CSV保存
+     out_csv = Path(out_dir) / f"score_count_hist_{prefix}.csv"
+     pd.DataFrame({
+         "bin_left": edges[:-1],
+         "bin_right": edges[1:],
+         "midpoint": mids,
+         "count_benign": cnt_benign,
+         "count_attack": cnt_attack,
+         "count_total": cnt_benign + cnt_attack,
+     }).to_csv(out_csv, index=False)
+     # プロット（積み上げバー）
+     plt.figure(figsize=(10, 4))
+     plt.bar(edges[:-1], cnt_benign, align="edge", width=width, alpha=0.75, label="Benign (count)")
+     plt.bar(edges[:-1], cnt_attack, align="edge", width=width, alpha=0.75, bottom=cnt_benign, label="Attack (count)")
+     if thr is not None:
+         plt.axvline(thr, linestyle="--", linewidth=1.2, label=f"threshold={thr}")
+     plt.xlabel("Anomaly score / P(Attack)")
+     plt.ylabel("Count")
+     plt.title(f"Score count histogram - {prefix}")
+     plt.legend()
+     out_png = Path(out_dir) / f"score_count_hist_{prefix}.png"
+     plt.savefig(out_png, dpi=180, bbox_inches="tight"); plt.close()
+     print(f"[{prefix}] Score count hist CSV:", out_csv)
+     print(f"[{prefix}] Score count hist PNG:", out_png)
 
 @dataclass
 class RunReport:
@@ -302,3 +384,127 @@ print("[Supervised HGB] ROC-AUC:", roc_sup, " AP:", ap_sup)
 print("[Supervised HGB] Confusion matrix:\n", np.array(cm_sup))
 
 print(f"[DONE] 結果を {OUT_DIR} に保存しました。レポート: report_isoforest.json / report_supervised_hgb.json")
+
+# ========= 追加：ROC曲線をCSV/PNGで保存 =========
+# IF は anom_score（大きいほど異常=Attack）を渡す
+save_and_print_roc(y_test.values, anom_score, OUT_DIR, prefix="isoforest")
+# 監督ありは Attack の確率を渡す
+save_and_print_roc(y_test.values, prob, OUT_DIR, prefix="supervised_hgb")
+
+# ========= 追加：異常スコアの“件数”ヒストグラム（横軸=スコア）を保存 =========
+# IF: しきい値は decision_function<0 → anom_score>0
+save_score_count_hist(y_test.values, anom_score, OUT_DIR, prefix="isoforest",      bins=60, thr=0.0)
+# supervised: しきい値は 0.5
+save_score_count_hist(y_test.values, prob,        OUT_DIR, prefix="supervised_hgb", bins=60, thr=0.5)
+
+# ========= 追加：HGB の特徴量重要度（モデル内 + Permutation）を保存 =========
+def _get_output_feature_names(prep, input_cols):
+    try:
+        return prep.get_feature_names_out(input_cols)
+    except Exception:
+        names = []
+        for name, trans, cols in prep.transformers_:
+            if name == "remainder" and trans == "drop":
+                continue
+            if hasattr(trans, "get_feature_names_out"):
+                base = trans.get_feature_names_out(cols)
+                names.extend([f"{name}__{b}" for b in base])
+            else:
+                names.extend([f"{name}__{c}" for c in cols])
+        return np.array(names, dtype=object)
+
+def _save_importances(names, values, out_dir: Path, prefix: str, top_k: int = 30, title: str = ""):
+    order = np.argsort(values)[::-1]
+    names_top = np.array(names)[order][:top_k]
+    vals_top  = np.array(values)[order][:top_k]
+    # CSV
+    imp_df = pd.DataFrame({"feature": names, "importance": values}).sort_values("importance", ascending=False)
+    imp_df.to_csv(Path(out_dir) / f"feature_importance_{prefix}.csv", index=False)
+    # 図
+    plt.figure(figsize=(8, max(4, 0.3*len(names_top))))
+    plt.barh(range(len(names_top)), vals_top[::-1])
+    plt.yticks(range(len(names_top)), names_top[::-1], fontsize=9)
+    plt.xlabel("Importance")
+    plt.title(title or f"Feature importance - {prefix}")
+    plt.tight_layout()
+    plt.savefig(Path(out_dir) / f"feature_importance_{prefix}.png", dpi=180, bbox_inches="tight")
+    plt.close()
+
+# 展開後の特徴量名
+_prep = pipe_hgb.named_steps["prep"]
+_clf  = pipe_hgb.named_steps["clf"]
+_feat_names = _get_output_feature_names(_prep, X.columns)
+
+# 1) モデル内（不純度）重要度
+if hasattr(_clf, "feature_importances_"):
+    _save_importances(_feat_names, _clf.feature_importances_, OUT_DIR,
+                      prefix="supervised_hgb_model", title="HGB impurity-based importance")
+
+#2) Permutation Importance（高速化版）
+#    - 生の入力列（OneHot前）単位で評価 → 列数が少なく高速
+#    - 評価データを最大5000件にサブサンプル
+_n_sub = min(5000, len(X_test))
+_X_sub = X_test.sample(n=_n_sub, random_state=RANDOM_STATE)
+_y_sub = y_test.loc[_X_sub.index]
+_pi = permutation_importance(
+    pipe_hgb,                # パイプライン全体に対して
+    _X_sub, _y_sub,
+    scoring="roc_auc",       # FutureWarning回避
+    n_repeats=3,             # 軽量化（必要に応じて増やす）
+    random_state=RANDOM_STATE,
+    n_jobs=-1
+)
+# 生列名で保存
+_save_importances(np.array(X.columns), _pi.importances_mean, OUT_DIR,
+                  prefix="supervised_hgb_perm",
+                  title="HGB permutation importance (ROC-AUC, raw features, subsampled)")
+
+from sklearn.metrics import roc_auc_score
+s = pd.Series(prob, index=X_test.index)  # 既にある予測確率
+
+def single_feature_auc(col):
+    """
+    HGBの前処理(prep)でフルデータを変換→対象列に対応する展開後の列だけ使って
+    軽い分類器(LogReg)を学習し、単一特徴のAUCを返す。
+    ※ pipe_hgb.fit(...) 実行後に呼んでください。
+    """
+    prep = pipe_hgb.named_steps["prep"]
+    # フルを一度だけ変換
+    Xt_tr = prep.transform(X_train)
+    Xt_te = prep.transform(X_test)
+    # 展開後の列名を取得
+    try:
+        out_names = prep.get_feature_names_out(X.columns)
+    except Exception:
+        # 古いsklearn用フォールバック
+        out_names = []
+        for name, trans, cols in prep.transformers_:
+            if name == "remainder" and trans == "drop":
+                continue
+            if hasattr(trans, "get_feature_names_out"):
+                base = trans.get_feature_names_out(cols)
+                out_names.extend([f"{name}__{b}" for b in base])
+            else:
+                out_names.extend([f"{name}__{c}" for c in cols])
+        out_names = np.array(out_names, dtype=object)
+    # 対象列に対応する展開後インデックス（OneHotは複数列）
+    if col in CAT_COLS:
+        prefix = f"cat__{col}_"
+        mask = np.array([n.startswith(prefix) for n in out_names])
+    else:
+        prefix = f"num__{col}"
+        mask = (out_names == prefix)
+    idx = np.where(mask)[0]
+    if idx.size == 0:
+        print(f"[WARN] no expanded features for {col}")
+        return np.nan
+    # 単一特徴（展開後の該当列群）のみで小さなモデルを学習
+    from sklearn.linear_model import LogisticRegression
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(Xt_tr[:, idx], y_train)
+    prob = clf.predict_proba(Xt_te[:, idx])[:, 1]
+    return roc_auc_score(y_test, prob)
+
+for col in ["src_emb_0","src_emb_28"]:
+    if col in X_test.columns:
+        print(col, single_feature_auc(col))
