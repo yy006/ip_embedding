@@ -27,8 +27,9 @@ EXPERIMENT = '2025-10-07T01-57-11_incremental_jk7mc49n'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
 # ========= ここだけ編集してください =========
+rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=4))
 INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
-OUT_DIR        = f"{EXPERIMENT}_0_0_3_out_run"
+OUT_DIR        = f"eval/eval_anomaly_{EXPERIMENT}_{rand8}"
 TEST_SIZE      = 0.2
 RANDOM_STATE   = 42
 
