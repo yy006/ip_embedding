@@ -1,3 +1,1 @@
-datasets/UNSW-NB15/raw_data/*
-datasets/UNSW-NB15/with_class_name/*
-datasets/UNSW-NB15/ipmap59to175_drop175benign_with_class_name/*
+datasets/UNSW-NB15/*

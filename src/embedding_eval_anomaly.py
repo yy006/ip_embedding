@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from config import *
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
@@ -22,13 +24,14 @@ from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
 #EXPERIMENT = '2025-10-09T01-04-18_single_e2nnxmjs'
-EXPERIMENT = '2025-10-07T01-57-11_incremental_jk7mc49n'
+EXPERIMENT = '2025-10-21T14-37-42_incremental_pbft9728'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
 # ========= ここだけ編集してください =========
-rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=4))
-INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
+rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=8))
+#INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
+INPUT_CSV      = BLOCKS[6]  # 評価用ブロックのCSVパス
 OUT_DIR        = f"eval/eval_anomaly_{EXPERIMENT}_{rand8}"
 TEST_SIZE      = 0.2
 RANDOM_STATE   = 42
@@ -41,8 +44,9 @@ with open(json_path, 'r') as f:
 #EMBED_PKL_TEST  = config['results']['blocks']['005']['model']['model_path']
 #EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-09T01-04-18_single_e2nnxmjs/models/model_block_001"   
 #EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-09-30T05-54-05_single_4vfhlp7f/models/model_block_001" 
-EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-07T01-57-11_incremental_jk7mc49n/models/model_block_004"
-EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-10-07T01-57-11_incremental_jk7mc49n/models/model_block_005"
+#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-21T14-37-21_single_t9ki8mjt/models/model_block_001"
+EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/" + EXPERIMENT + "/models/model_block_005"
+EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/" + EXPERIMENT + "/models/model_block_006"
 
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):

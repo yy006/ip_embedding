@@ -13,10 +13,11 @@ from typing import Tuple, Dict, Any
 
 SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UNSW-NB15": {
-        "usecols": ['Timestamp', 'Src IP Addr', 'Src Pt', 'Dst IP Addr', 'Dst Pt', 'Proto'],
-        "rename": {'Timestamp': 'ts', 'Src IP Addr': 'ip', 'Dst Pt': 'port', 'Proto': 'proto'},
+        #"usecols": ['Timestamp', 'Src IP Addr', 'Src Pt', 'Dst IP Addr', 'Dst Pt', 'Proto'],
+        "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto'],
+        "rename": {'Timestamp': 'ts', 'srcip': 'ip', 'dsport': 'port', 'proto': 'proto'},
         "sep": ',',
-        "ip_col": ['Src IP Addr'],
+        "ip_col": ['srcip'],
     }
 }
 
