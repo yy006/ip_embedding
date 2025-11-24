@@ -23,15 +23,14 @@ from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-#EXPERIMENT = '2025-10-09T01-04-18_single_e2nnxmjs'
-EXPERIMENT = '2025-10-21T14-37-42_incremental_pbft9728'
+EXPERIMENT = '2025-10-21T14-37-21_single_t9ki8mjt'
+#EXPERIMENT = '2025-11-21T06-50-31_incremental_xttsbif7'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
 # ========= ここだけ編集してください =========
 rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=8))
 #INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
-INPUT_CSV      = BLOCKS[6]  # 評価用ブロックのCSVパス
 OUT_DIR        = f"eval/eval_anomaly_{EXPERIMENT}_{rand8}"
 TEST_SIZE      = 0.2
 RANDOM_STATE   = 42
@@ -39,14 +38,15 @@ RANDOM_STATE   = 42
 with open(json_path, 'r') as f:
     config = json.load(f)
 
+INPUT_CSV      = config['blocks']['6']
+
 # 埋め込みのパス
 #EMBED_PKL_TRAIN = config['results']['blocks']['005']['model']['model_path']
 #EMBED_PKL_TEST  = config['results']['blocks']['005']['model']['model_path']
-#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-09T01-04-18_single_e2nnxmjs/models/model_block_001"   
-#EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-09-30T05-54-05_single_4vfhlp7f/models/model_block_001" 
-#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-21T14-37-21_single_t9ki8mjt/models/model_block_001"
-EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/" + EXPERIMENT + "/models/model_block_005"
-EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/" + EXPERIMENT + "/models/model_block_006"
+EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-10-21T14-39-12_single_dxas8pgr/models/model_block_001"   
+EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-10-21T14-37-21_single_t9ki8mjt/models/model_block_001" 
+#EMBED_PKL_TRAIN = "/workspace/experiments/"+ DATASET + "/" + EXPERIMENT + "/models/model_block_001"
+#EMBED_PKL_TEST  = "/workspace/experiments/"+ DATASET + "/" + EXPERIMENT + "/models/model_block_006"
 
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):
@@ -409,6 +409,16 @@ save_and_print_roc(y_test.values, prob, OUT_DIR, prefix="supervised_hgb")
 save_score_count_hist(y_test.values, anom_score, OUT_DIR, prefix="isoforest",      bins=60, thr=0.0)
 # supervised: しきい値は 0.5
 save_score_count_hist(y_test.values, prob,        OUT_DIR, prefix="supervised_hgb", bins=60, thr=0.5)
+
+print("y_test の件数と内訳:", y_test.value_counts())
+print("X_test のサイズ:", X_test.shape)
+
+print("異常スコア（anom_score）の一意な値:", np.unique(anom_score))
+print("最大・最小:", anom_score.min(), anom_score.max())
+
+print("y_test の件数と内訳:\n", y_test.value_counts())
+
+
 
 # ========= 追加：HGB の特徴量重要度（モデル内 + Permutation）を保存 =========
 def _get_output_feature_names(prep, input_cols):
