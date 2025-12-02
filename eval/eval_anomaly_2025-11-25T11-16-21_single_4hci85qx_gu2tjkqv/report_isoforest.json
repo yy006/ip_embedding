@@ -1,0 +1,19 @@
+{
+  "setting": "one_class_isolation_forest",
+  "n_train": 24715,
+  "n_test": 9415,
+  "roc_auc": 0.27528598510426516,
+  "ap": 0.25723810132027525,
+  "threshold_desc": "decision_function<0 を異常（異常スコア>0）として判定",
+  "confusion": [
+    [
+      491,
+      5689
+    ],
+    [
+      8,
+      3227
+    ]
+  ],
+  "notes": "CAT=['proto', 'state', 'service'], NUM=['dur', 'sbytes', 'dbytes', 'sloss', 'dloss', 'Sload', 'Spkts', 'Dpkts', 'swin', 'dwin', 'stcpb', 'dtcpb', 'smeansz', 'trans_depth', 'res_bdy_len', 'Sjit', 'Djit', 'sttl'], EMBED_DIM=50"
+}

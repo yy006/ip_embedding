@@ -1,0 +1,19 @@
+{
+  "setting": "supervised_hgb_classifier",
+  "n_train": 37656,
+  "n_test": 9415,
+  "roc_auc": 0.9999797422007473,
+  "ap": 0.9999613458501393,
+  "threshold_desc": "P(Attack) >= 0.5 を異常と判定",
+  "confusion": [
+    [
+      6165,
+      15
+    ],
+    [
+      9,
+      3226
+    ]
+  ],
+  "notes": "CAT=['proto', 'state', 'service'], NUM=['dur', 'sbytes', 'dbytes', 'sloss', 'dloss', 'Sload', 'Spkts', 'Dpkts', 'swin', 'dwin', 'stcpb', 'dtcpb', 'smeansz', 'trans_depth', 'res_bdy_len', 'Sjit', 'Djit', 'sttl'], EMBED_DIM=50"
+}

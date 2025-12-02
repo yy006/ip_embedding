@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "run_id": "2025-11-25T12-19-38_single_r2beiqs3",
+  "dataset": "UNSW-NB15",
+  "mode": "single",
+  "started_at": "2025-11-25T12-19-38",
+  "blocks": {
+    "1": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012219_2015012220_by0.5h.csv",
+    "2": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012220_2015012220_by0.5h.csv",
+    "3": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012220_2015012221_by0.5h.csv",
+    "4": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012221_2015012221_by0.5h.csv",
+    "5": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012221_2015012222_by0.5h.csv",
+    "6": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012222_2015012222_by0.5h.csv",
+    "7": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012222_2015012223_by0.5h.csv",
+    "8": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012223_2015012223_by0.5h.csv",
+    "9": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012223_2015012300_by0.5h.csv",
+    "10": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015012300_2015012300_by0.5h.csv",
+    "11": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015021800_2015021800_by0.5h.csv",
+    "12": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by0.5h/2015021800_2015021801_by0.5h.csv"
+  },
+  "params": {
+    "corpus": {
+      "services": "auto",
+      "without_duplicates": true,
+      "top_ports": 300
+    },
+    "word2vec": {
+      "c": 25,
+      "e": 50,
+      "epochs": 3,
+      "method": "incremental"
+    }
+  },
+  "results": {
+    "overall": {
+      "total_wall_time_sec": 8.738
+    },
+    "blocks": {
+      "001": {
+        "block_id": 1,
+        "wall_time_sec": 8.724,
+        "model": {
+          "vocab_size": 27,
+          "vector_size": 50,
+          "model_path": "/workspace/experiments/UNSW-NB15/2025-11-25T12-19-38_single_r2beiqs3/models/model_block_001",
+          "dict_path": "/workspace/experiments/UNSW-NB15/2025-11-25T12-19-38_single_r2beiqs3/dicts/dict_block_001.json"
+        },
+        "corpus_stats": {
+          "ndocs": 896,
+          "min_words": 1,
+          "avg_words": 361.71875,
+          "max_words": 21946,
+          "min_unique_words": 1,
+          "avg_unique_words": 4.824776785714286,
+          "max_unique_words": 20
+        }
+      }
+    }
+  },
+  "finished_at": "2025-11-25T12-19-47"
+}
