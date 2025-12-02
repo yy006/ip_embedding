@@ -51,7 +51,7 @@ BLOCKS: dict[int, Path] = {
     #18: DATA_PATH / "2015021803_2015021804_by0.5h.csv",
 }
 '''
-'''
+
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
 BLOCKS: dict[int, Path] = {
@@ -62,7 +62,7 @@ BLOCKS: dict[int, Path] = {
     5: DATA_PATH / "2015021800_2015021802_by2h.csv",
     6: DATA_PATH / "2015021802_2015021804_by2h.csv",
 }
-'''
+
 '''
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / "UNSW-NB15_2_by1h"
@@ -79,7 +79,7 @@ BLOCKS: dict[int, Path] = {
     #10: DATA_PATH / "2015021803_2015021804_by1h.csv",
 }
 '''
-
+'''
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / "UNSW-NB15_2_by10h"
 BLOCKS: dict[int, Path] = {
@@ -90,7 +90,7 @@ BLOCKS: dict[int, Path] = {
     5: DATA_PATH / "2015021800_2015021802_by2h_product_5.csv",
     6: DATA_PATH / "2015021802_2015021804_by2h_product_5.csv",
 }
-
+'''
 
 SERVICES = f'{DATA}/services/services.json'
 
