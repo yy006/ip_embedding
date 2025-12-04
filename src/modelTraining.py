@@ -2,10 +2,10 @@ from config import *
 from preprocess import load_raw_data, filter_data, get_next_day
 from corpus import get_corpus
 from word2vec import Word2Vec
+#from torch_word2vec import TorchWord2Vec
 import numpy as np
 import time
 from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
-
 
 SAVE = True
 
@@ -59,6 +59,8 @@ if TRAINING_MODE == "single":
 
 elif TRAINING_MODE == "incremental":
     for block_id in BLOCKS.keys():
+        t_block_start = time.perf_counter()
+
         exp_logger.block_start(block_id)
 
         raw_data = load_raw_data(block_id)
@@ -67,7 +69,10 @@ elif TRAINING_MODE == "incremental":
         corpus_stats = corpus_basic_stats(corpus)
 
         model = Word2Vec(**params[0]['word2vec'])
+        t_train_start = time.perf_counter()
         model.train(corpus, save=SAVE)
+        t_train_end = time.perf_counter()
+
 
         # === 実験ログ記録 ===
         # モデル・辞書の保存先パス
@@ -79,6 +84,9 @@ elif TRAINING_MODE == "incremental":
 
         vocab_size = len(model.model.wv.index_to_key)
         vector_size = getattr(model.model.wv, "vector_size", None) or getattr(model.model, "vector_size", 0)
+
+        t_block_end = time.perf_counter()
+        print(f"Block {block_id:03d} training time: {t_train_end - t_train_start:.2f} sec, total time: {t_block_end - t_block_start:.2f} sec")
 
         exp_logger.block_end(
             block_id,

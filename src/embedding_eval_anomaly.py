@@ -3,6 +3,8 @@ import pickle
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 
+import torch
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -23,7 +25,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-EXPERIMENT = '2025-11-28T10-25-38_incremental_ohosptwi'
+EXPERIMENT = '2025-12-02T12-53-23_incremental_zr9cmvxb'
 #EXPERIMENT = '2025-11-21T06-50-31_incremental_xttsbif7'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
@@ -52,8 +54,7 @@ EMBED_PKL_TEST  = "/workspace/experiments/"+ DATASET + "/" + EXPERIMENT + "/mode
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):
     p = Path(path)
-    with open(p, "rb") as f:
-        obj = pickle.load(f)
+    obj = torch.load(p, map_location="cpu", weights_only=False)
 
     print (obj)
     return obj

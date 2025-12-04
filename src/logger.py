@@ -129,11 +129,19 @@ class ExperimentLogger:
         self.state["finished_at"] = _now_iso()
         _atomic_write(self.logs_path, self.state)
 
-def save_model_and_dict(model: Word2Vec, dict_obj: dict, model_path: Path, dict_path: Path):
+def save_model_and_dict(model, dict_obj: dict, model_path: Path, dict_path: Path):
     """
-    Word2Vec 実装差異を吸収しつつ保存。存在するメソッドだけ呼ぶ。
+    Word2Vec 実装差異を吸収しつつ保存。
+    - gensim版: model.model.save(...)
+    - Torch版: model.save_model(...)
     """
-    model.model.save(str(model_path))
+    # TorchWord2Vec なら、自前の save_model を呼ぶ
+    if hasattr(model, "save_model"):
+        model.save_model(str(model_path))
+
+    # 旧 gensim Word2Vec ラッパなら、内部の model.save を呼ぶ
+    elif hasattr(getattr(model, "model", None), "save"):
+        model.model.save(str(model_path))
 
 def corpus_basic_stats(corpus):
     # corpus: List[List[token]]

@@ -3,7 +3,7 @@ from multiprocessing import cpu_count
 import pandas as pd
 
 class Word2Vec():
-    def __init__(self, c=25, e=50, epochs=20, mname='sample', method=None):
+    def __init__(self, c=25, e=50, epochs=3, mname='sample', method=None):
         self.context_window = c
         self.embedding_size = e
         self.epochs = epochs
