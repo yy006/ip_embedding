@@ -59,8 +59,8 @@ BLOCKS: dict[int, Path] = {
     2: DATA_PATH / "2015012220_2015012222_by2h.csv",
     3: DATA_PATH / "2015012222_2015012300_by2h.csv",
     4: DATA_PATH / "2015012300_2015012302_by2h.csv",
-    5: DATA_PATH / "2015021800_2015021802_by2h.csv",
-    6: DATA_PATH / "2015021802_2015021804_by2h.csv",
+    #5: DATA_PATH / "2015021800_2015021802_by2h.csv",
+    #6: DATA_PATH / "2015021802_2015021804_by2h.csv",
 }
 
 '''
@@ -95,7 +95,7 @@ BLOCKS: dict[int, Path] = {
 SERVICES = f'{DATA}/services/services.json'
 
 TrainingMode = Literal["single", "incremental"]
-TRAINING_MODE: TrainingMode = 'incremental'  # "single" or "incremental"
+TRAINING_MODE: TrainingMode = 'single'  # "single" or "incremental"
 
 ARTIFACTS_ROOT = Path(ROOT) / "experiments"
 

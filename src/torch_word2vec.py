@@ -91,7 +91,7 @@ class TorchWord2Vec:
         self,
         c=25,
         e=50,
-        epochs=3,
+        epochs=2,
         mname="sample",
         neg_k=5,
         lr=0.025,

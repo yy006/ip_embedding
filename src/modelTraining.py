@@ -2,7 +2,7 @@ from config import *
 from preprocess import load_raw_data, filter_data, get_next_day
 from corpus import get_corpus
 from word2vec import Word2Vec
-#from torch_word2vec import TorchWord2Vec
+from torch_word2vec import TorchWord2Vec
 import numpy as np
 import time
 from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
@@ -10,7 +10,7 @@ from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
 SAVE = True
 
 params = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':300},
-       'word2vec':{'c':25, 'e':50, 'epochs':3, 'method':'incremental'}}]
+       'word2vec':{'c':25, 'e':50, 'epochs':2, 'method':'incremental'}}]
 
 print(TRAINING_MODE)
 print(BLOCKS)
@@ -33,7 +33,7 @@ if TRAINING_MODE == "single":
     corpus = get_corpus(filtered, **params[0]['corpus'])
     corpus_stats = corpus_basic_stats(corpus)
 
-    model = Word2Vec(**params[0]['word2vec'])
+    model = TorchWord2Vec(**params[0]['word2vec'])
     model.train(corpus, save=SAVE)
 
     # === 実験ログ記録 ===
@@ -68,7 +68,7 @@ elif TRAINING_MODE == "incremental":
         corpus = get_corpus(filtered, **params[0]['corpus'])
         corpus_stats = corpus_basic_stats(corpus)
 
-        model = Word2Vec(**params[0]['word2vec'])
+        model = TorchWord2Vec(**params[0]['word2vec'])
         t_train_start = time.perf_counter()
         model.train(corpus, save=SAVE)
         t_train_end = time.perf_counter()

@@ -25,8 +25,8 @@ from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
-EXPERIMENT = '2025-12-02T12-53-23_incremental_zr9cmvxb'
-#EXPERIMENT = '2025-11-21T06-50-31_incremental_xttsbif7'
+EXPERIMENT = '2025-12-05T04-36-49_incremental_1a9temld'
+#EXPERIMENT = '2025-11-28T10-25-38_incremental_ohosptwi'
 #EXPERIMENT = '2025-09-30T05-54-05_single_4vfhlp7f'
 json_path = f'experiments/{DATASET}/{EXPERIMENT}/experiment.json'
 
@@ -35,8 +35,7 @@ rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), s
 #INPUT_CSV      = "datasets/UNSW-NB15/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/2015021802_2015021804_by2h.csv"
 OUT_DIR        = f"eval/eval_anomaly_{EXPERIMENT}_{rand8}"
 TEST_SIZE      = 0.2
-RANDOM_STATE   = 42
-
+RANDOM_STATE   = 46
 with open(json_path, 'r') as f:
     config = json.load(f)
 
@@ -46,21 +45,25 @@ INPUT_CSV      = config['blocks']['6']
 # 埋め込みのパス
 #EMBED_PKL_TRAIN = config['results']['blocks']['005']['model']['model_path']
 #EMBED_PKL_TEST  = config['results']['blocks']['005']['model']['model_path']
-#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-11-28T08-49-24_single_hoy9fcim/models/model_block_001"   
-#EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-11-28T08-48-35_single_iwfuomb2/models/model_block_001" 
+#EMBED_PKL_TRAIN = "/workspace/experiments/UNSW-NB15/2025-12-05T09-00-27_single_mwjnnrym/models/model_block_001"   
+#EMBED_PKL_TEST  = "/workspace/experiments/UNSW-NB15/2025-12-05T06-39-23_single_cbzfz5go/models/model_block_001" 
 EMBED_PKL_TRAIN = "/workspace/experiments/"+ DATASET + "/" + EXPERIMENT + "/models/model_block_005"
 EMBED_PKL_TEST  = "/workspace/experiments/"+ DATASET + "/" + EXPERIMENT + "/models/model_block_006"
 
 # 埋め込みの読み込み
 def load_embeddings(path: str | Path):
-    p = Path(path)
-    obj = torch.load(p, map_location="cpu", weights_only=False)
-
-    print (obj)
+    p = Path(path) 
+    '''
+    with open(p, "rb") as f:
+        obj = pickle.load(f)
     return obj
+    '''
+    return torch.load(p, map_location="cpu", weights_only=False)
 
 model_train = load_embeddings(EMBED_PKL_TRAIN)
 model_test  = load_embeddings(EMBED_PKL_TEST)
+
+print("model_test:", model_test)
 
 # 使う列 sttl抜き
 USE_COLS = ["proto","state","dur", "sbytes","dbytes","sloss","dloss","service","Sload","Spkts","Dpkts","swin","dwin","stcpb","dtcpb","smeansz","trans_depth","res_bdy_len","Sjit","Djit","sttl"]
@@ -88,18 +91,29 @@ def load_csv(path: str | Path) -> pd.DataFrame:
     return df
 
 def get_embedding_interface(model_obj):
-    """
-    gensim互換（model.wv, get_vector が使える）を前提に安全にアクセスするためのラッパを返す。
-    """
-    # gensim >= 4 なら model.wv.key_to_index / model.wv.vectors / get_vector が使える
+    # gensim のときはそのまま返す
     wv = getattr(model_obj, "wv", None)
-    if wv is None:
-        # まれに KeyedVectors をそのままpickleしている場合もある
-        wv = model_obj
-    # 確認
-    if not hasattr(wv, "key_to_index") or not hasattr(wv, "vectors") or not hasattr(wv, "get_vector"):
-        raise TypeError("埋め込みモデルが gensim KeyedVectors 互換ではありません。model.wv.get_vector が必要です。")
-    return wv
+    if wv is not None:
+        return wv
+
+    # PyTorch 版 (state_dict + token2id) からラッパを作る
+    embs = model_obj["model_state"]["in_embed.weight"].detach().cpu().numpy()
+    token2id = model_obj["token2id"]
+
+    class TorchKeyedVectorsLike:
+        def __init__(self, vectors, token2id):
+            self.vectors = vectors
+            self.vector_size = vectors.shape[1]
+            self.key_to_index = token2id
+            self.index_to_key = list(token2id.keys())
+
+        def get_vector(self, key: str):
+            return self.vectors[self.key_to_index[key]]
+
+        def __getitem__(self, key: str):
+            return self.get_vector(key)
+
+    return TorchKeyedVectorsLike(embs, token2id)
 
 def compute_mean_vector(wv) -> np.ndarray:
     if getattr(wv, "vectors", None) is None or len(wv.vectors) == 0:
