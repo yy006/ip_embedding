@@ -11,6 +11,34 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 
+def build_pairs_with_flags(ips_seqs, label_seqs, token2id, window):
+    pairs = []
+    flags = []
+    for ips, labs in zip(ips_seqs, label_seqs):
+        # 語彙にない IP を落としつつ Label を揃える
+        valid = [(token2id[ip], lab) for ip, lab in zip(ips, labs) if ip in token2id]
+        if not valid:
+            continue
+        ids, labs = zip(*valid)  # tuple -> tuple
+        ids  = list(ids)
+        labs = list(labs)
+
+        L = len(ids)
+        for i in range(L):
+            c_id = ids[i]
+            for j in range(max(0, i-window), min(L, i+window+1)):
+                if i == j:
+                    continue
+                o_id = ids[j]
+                pairs.append((c_id, o_id))
+                # どちらかが攻撃フローなら 1.0
+                flag = float(max(labs[i], labs[j]))
+                flags.append(flag)
+
+    pairs_np = np.array(pairs, dtype=np.int64)
+    flags_np = np.array(flags, dtype=np.float32)
+    return pairs_np, flags_np
+
 class SkipGramNegSampling(nn.Module):
     """
     中身の埋め込みモデル本体 (input, output の2つの埋め込みテーブル)。
@@ -405,6 +433,86 @@ class TorchWord2Vec:
         # 6. モデル保存（必要な場合のみ）
         if save:
             self.save_model()
+
+    def train_from_pairs(self, pairs, pair_flags, batch_size=1024, save=False):
+        centers_np = pairs[:, 0].astype(np.int64)
+        contexts_np = pairs[:, 1].astype(np.int64)
+        flags_np    = pair_flags.astype(np.float32)
+
+        num_pairs = len(pairs)
+
+        self.model = SkipGramNegSampling(vocab_size=len(self.token2id),
+                                        embedding_dim=self.embedding_size).to(self.device)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+
+        self.model.train()
+        for epoch in range(self.epochs):
+            perm = np.random.permutation(num_pairs)
+            total_loss = 0.0
+            for start in range(0, num_pairs, batch_size):
+                end = min(start+batch_size, num_pairs)
+                idx = perm[start:end]
+                B = end - start
+
+                center_ids = torch.from_numpy(centers_np[idx]).to(self.device)
+                pos_ids    = torch.from_numpy(contexts_np[idx]).to(self.device)
+                neg_ids = torch.multinomial(
+                    self.unigram_table,
+                    self.neg_k * B,
+                    replacement=True,
+                ).view(B, self.neg_k).to(self.device)
+
+                loss_vec = self.model(center_ids, pos_ids, neg_ids)
+
+                if self.alpha_anom > 0.0:
+                    #print("|||||Applying anomaly weights in train_from_pairs|||||")
+                    flags = torch.from_numpy(flags_np[idx]).to(self.device)  # 0 or 1
+                    weights = 1.0 + self.alpha_anom * flags
+                    loss_vec = loss_vec * weights
+
+                loss = loss_vec.mean()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item() * B
+
+            print(f"[epoch {epoch+1}/{self.epochs}] loss={total_loss/num_pairs:.4f}")
+
+        self._attach_wv()
+        if save:
+            self.save_model()
+
+    def train_with_labels(
+        self,
+        ips_seqs,
+        label_seqs,
+        batch_size=1024,
+        min_count=0,
+        save=False,
+    ):
+        """
+        ips_seqs   : list[list[str]]  各サービス/時間窓ごとの IP 列
+        label_seqs : list[list[int]]  同じ長さの攻撃ラベル列 (0/1)
+        """
+        # 1) 語彙構築（IP だけ使う）
+        self._build_vocab(ips_seqs, min_count=min_count)
+
+        # 2) ラベル付きペア＋フラグ作成
+        pairs_np, flags_np = build_pairs_with_flags(
+            ips_seqs,
+            label_seqs,
+            token2id=self.token2id,
+            window=self.context_window,
+        )
+        print(f"{len(pairs_np)} labeled pairs generated.")
+
+        # 3) そのまま train_from_pairs に渡して学習
+        self.train_from_pairs(
+            pairs=pairs_np,
+            pair_flags=flags_np,
+            batch_size=batch_size,
+            save=save,
+        )
 
     # ====== モデルの保存・読み込み ======
     def save_model(self, path=None):

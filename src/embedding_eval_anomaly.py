@@ -22,7 +22,6 @@ from sklearn.metrics import (
 from sklearn.inspection import permutation_importance
 from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
 
-
 # 実験設定の読み込み
 DATASET = 'UNSW-NB15'
 EXPERIMENT = '2025-12-05T04-36-49_incremental_1a9temld'
@@ -241,11 +240,10 @@ def save_report_json(report: RunReport, out_dir: Path, fname: str):
     with open(out_dir / fname, "w") as f:
         json.dump(asdict(report), f, indent=2, ensure_ascii=False)
 
-# ========= データ読み込み & 前処理 =========
+# ========= データ読み込み & 前処理（ここは1回だけ実行） =========
 OUT_DIR = ensure_outdir(OUT_DIR)
 df = load_csv(INPUT_CSV)
 
-# 'Label' 列チェック
 if "Label" not in df.columns:
     raise KeyError("Label 列が見つかりません。列名を確認してください。")
 
@@ -255,295 +253,180 @@ wv_test  = get_embedding_interface(model_test)
 mean_vec_train = compute_mean_vector(wv_train)
 mean_vec_test  = compute_mean_vector(wv_test)
 
-# 使う列（存在確認）— まずは“元特徴のみ”で判定（埋め込みは後で付与）
+# 使う列（存在確認）
 USE_COLS = select_existing_columns(df, USE_COLS)
-# カテゴリ/数値の自動判定（元特徴のみ）
 CAT_COLS = [c for c in ["proto", "state", "service"] if c in USE_COLS]
 NUM_COLS = [c for c in USE_COLS if c not in CAT_COLS]
 
-# 学習/評価用に必要なカラム（埋め込み付与用に srcip を残す）
-need_cols = ["Label", "srcip"] + CAT_COLS + NUM_COLS
-work = df[need_cols].copy()
 
-X = work.drop(columns=["Label"])
-y = work["Label"].astype(int)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
-)
-# ========= 埋め込みを train/test で別モデルから付与 =========
-# （emb_cols の列名は train 側の次元に合わせて共通化）
-X_train, emb_cols = attach_srcip_embedding(X_train.copy(), wv_train, mean_vec_train, ip_col="srcip")
-X_test,  _        = attach_srcip_embedding(X_test.copy(),  wv_test,  mean_vec_test,  ip_col="srcip")
-
-# 学習に srcip 本体は使わない（列指定に含めない）
-ALL_NUM_COLS = NUM_COLS + emb_cols
-
-# ========= 変換パイプライン（OneHotEncoderはdense出力にしてHGBに対応） =========
-cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-num_transformer = "passthrough"  # 標準化は木系では必須でないので省略
-preprocess = ColumnTransformer(
-    transformers=[
-        ("cat", cat_transformer, CAT_COLS),
-        ("num", num_transformer, ALL_NUM_COLS),
-    ],
-    remainder="drop",
-)
-
-# ========= 1) 正常のみで学習する異常検知（IsolationForest） =========
-# 訓練は Benign のみ
-mask_benign_train = (y_train == BENIGN_LABEL)
-X_train_benign = X_train[mask_benign_train]
-
-iso_clf = IsolationForest(
-    n_estimators=300,
-    max_samples="auto",
-    contamination="auto",  # 汎用設定（テストの異常率は使わない）
-    random_state=RANDOM_STATE,
-    n_jobs=-1,
-)
-
-pipe_iso = Pipeline([
-    ("prep", preprocess),
-    ("clf", iso_clf),
-])
-
-pipe_iso.fit(X_train_benign)  # 異常を含めない学習
-
-# スコア：decision_function は「+ = inlier（正常）, - = outlier（異常）」なので符号を反転して異常スコア化
-dec = pipe_iso.decision_function(X_test)  # 高いほど正常
-anom_score = -dec                        # 高いほど異常
-
-# ROC-AUC / AP（Label=1を異常とみなす）
-try:
-    roc_if = roc_auc_score(y_test, anom_score)
-except ValueError:
-    roc_if = None
-try:
-    ap_if = average_precision_score(y_test, anom_score)
-except ValueError:
-    ap_if = None
-
-# 閾値は 0（= decision_function<0.03 を異常）相当
-y_pred_if = (anom_score > 0.03).astype(int)
-cm_if = confusion_matrix(y_test, y_pred_if).tolist()
-
-rep_if = RunReport(
-    setting="one_class_isolation_forest",
-    n_train=int(mask_benign_train.sum()),
-    n_test=len(y_test),
-    roc_auc=roc_if,
-    ap=ap_if,
-    threshold_desc="decision_function<0 を異常（異常スコア>0）として判定",
-    confusion=cm_if,
-    notes=f"CAT={CAT_COLS}, NUM={NUM_COLS}, EMBED_DIM={len(emb_cols)}"
-)
-save_report_json(rep_if, OUT_DIR, "report_isoforest.json")
-
-# 予測詳細を保存
-pred_if = pd.DataFrame({
-    "y_true": y_test.values,
-    "anom_score": anom_score,
-    "y_pred": y_pred_if,
-})
-pred_if.to_csv(Path(OUT_DIR) / "pred_isoforest.csv", index=False)
-
-print("[IsolationForest] ROC-AUC:", roc_if, " AP:", ap_if)
-print("[IsolationForest] Confusion matrix:\n", np.array(cm_if))
-
-# ========= 2) 正常+攻撃の両方で学習する教師あり分類（HistGradientBoosting） =========
-hgb = HistGradientBoostingClassifier(
-    max_depth=None,
-    learning_rate=0.1,
-    max_iter=300,
-    random_state=RANDOM_STATE,
-)
-
-pipe_hgb = Pipeline([
-    ("prep", preprocess),
-    ("clf", hgb),
-])
-
-pipe_hgb.fit(X_train, y_train)
-
-# 確率（正例=ATTACK_LABEL の確率）を取りたいので predict_proba 相当を取得
-# HGBClassifier は predict_proba を提供（binary の場合）
-if hasattr(pipe_hgb.named_steps["clf"], "predict_proba"):
-    prob = pipe_hgb.predict_proba(X_test)[:, 1]
-else:
-    # ない場合は decision_function をシグモイドで近似…だが、HGB は基本 prob あり
-    # 念のため fallback
-    raw = pipe_hgb.decision_function(X_test)
-    prob = 1.0 / (1.0 + np.exp(-raw))
-
-# ROC-AUC / AP
-try:
-    roc_sup = roc_auc_score(y_test, prob)
-except ValueError:
-    roc_sup = None
-try:
-    ap_sup = average_precision_score(y_test, prob)
-except ValueError:
-    ap_sup = None
-
-# 閾値は0.5
-y_pred_sup = (prob >= 0.5).astype(int)
-cm_sup = confusion_matrix(y_test, y_pred_sup).tolist()
-
-rep_sup = RunReport(
-    setting="supervised_hgb_classifier",
-    n_train=len(y_train),
-    n_test=len(y_test),
-    roc_auc=roc_sup,
-    ap=ap_sup,
-    threshold_desc="P(Attack) >= 0.5 を異常と判定",
-    confusion=cm_sup,
-    notes=f"CAT={CAT_COLS}, NUM={NUM_COLS}, EMBED_DIM={len(emb_cols)}"
-)
-save_report_json(rep_sup, OUT_DIR, "report_supervised_hgb.json")
-
-pred_sup = pd.DataFrame({
-    "y_true": y_test.values,
-    "prob_attack": prob,
-    "y_pred": y_pred_sup,
-})
-pred_sup.to_csv(Path(OUT_DIR) / "pred_supervised_hgb.csv", index=False)
-
-print("[Supervised HGB] ROC-AUC:", roc_sup, " AP:", ap_sup)
-print("[Supervised HGB] Confusion matrix:\n", np.array(cm_sup))
-
-print(f"[DONE] 結果を {OUT_DIR} に保存しました。レポート: report_isoforest.json / report_supervised_hgb.json")
-
-# ========= 追加：ROC曲線をCSV/PNGで保存 =========
-# IF は anom_score（大きいほど異常=Attack）を渡す
-save_and_print_roc(y_test.values, anom_score, OUT_DIR, prefix="isoforest")
-# 監督ありは Attack の確率を渡す
-save_and_print_roc(y_test.values, prob, OUT_DIR, prefix="supervised_hgb")
-
-# ========= 追加：異常スコアの“件数”ヒストグラム（横軸=スコア）を保存 =========
-# IF: しきい値は decision_function<0 → anom_score>0
-save_score_count_hist(y_test.values, anom_score, OUT_DIR, prefix="isoforest",      bins=60, thr=0.0)
-# supervised: しきい値は 0.5
-save_score_count_hist(y_test.values, prob,        OUT_DIR, prefix="supervised_hgb", bins=60, thr=0.5)
-
-print("y_test の件数と内訳:", y_test.value_counts())
-print("X_test のサイズ:", X_test.shape)
-
-print("異常スコア（anom_score）の一意な値:", np.unique(anom_score))
-print("最大・最小:", anom_score.min(), anom_score.max())
-
-print("y_test の件数と内訳:\n", y_test.value_counts())
-
-
-
-# ========= 追加：HGB の特徴量重要度（モデル内 + Permutation）を保存 =========
-def _get_output_feature_names(prep, input_cols):
-    try:
-        return prep.get_feature_names_out(input_cols)
-    except Exception:
-        names = []
-        for name, trans, cols in prep.transformers_:
-            if name == "remainder" and trans == "drop":
-                continue
-            if hasattr(trans, "get_feature_names_out"):
-                base = trans.get_feature_names_out(cols)
-                names.extend([f"{name}__{b}" for b in base])
-            else:
-                names.extend([f"{name}__{c}" for c in cols])
-        return np.array(names, dtype=object)
-
-def _save_importances(names, values, out_dir: Path, prefix: str, top_k: int = 30, title: str = ""):
-    order = np.argsort(values)[::-1]
-    names_top = np.array(names)[order][:top_k]
-    vals_top  = np.array(values)[order][:top_k]
-    # CSV
-    imp_df = pd.DataFrame({"feature": names, "importance": values}).sort_values("importance", ascending=False)
-    imp_df.to_csv(Path(out_dir) / f"feature_importance_{prefix}.csv", index=False)
-    # 図
-    plt.figure(figsize=(8, max(4, 0.3*len(names_top))))
-    plt.barh(range(len(names_top)), vals_top[::-1])
-    plt.yticks(range(len(names_top)), names_top[::-1], fontsize=9)
-    plt.xlabel("Importance")
-    plt.title(title or f"Feature importance - {prefix}")
-    plt.tight_layout()
-    plt.savefig(Path(out_dir) / f"feature_importance_{prefix}.png", dpi=180, bbox_inches="tight")
-    plt.close()
-
-# 展開後の特徴量名
-_prep = pipe_hgb.named_steps["prep"]
-_clf  = pipe_hgb.named_steps["clf"]
-_feat_names = _get_output_feature_names(_prep, X.columns)
-
-# 1) モデル内（不純度）重要度
-if hasattr(_clf, "feature_importances_"):
-    _save_importances(_feat_names, _clf.feature_importances_, OUT_DIR,
-                      prefix="supervised_hgb_model", title="HGB impurity-based importance")
-
-#2) Permutation Importance（高速化版）
-#    - 生の入力列（OneHot前）単位で評価 → 列数が少なく高速
-#    - 評価データを最大5000件にサブサンプル
-_n_sub = min(5000, len(X_test))
-_X_sub = X_test.sample(n=_n_sub, random_state=RANDOM_STATE)
-_y_sub = y_test.loc[_X_sub.index]
-_pi = permutation_importance(
-    pipe_hgb,                # パイプライン全体に対して
-    _X_sub, _y_sub,
-    scoring="roc_auc",       # FutureWarning回避
-    n_repeats=3,             # 軽量化（必要に応じて増やす）
-    random_state=RANDOM_STATE,
-    n_jobs=-1
-)
-# 生列名で保存
-_save_importances(np.array(X.columns), _pi.importances_mean, OUT_DIR,
-                  prefix="supervised_hgb_perm",
-                  title="HGB permutation importance (ROC-AUC, raw features, subsampled)")
-
-from sklearn.metrics import roc_auc_score
-s = pd.Series(prob, index=X_test.index)  # 既にある予測確率
-
-def single_feature_auc(col):
+def run_isoforest_for_seed(seed: int) -> dict:
     """
-    HGBの前処理(prep)でフルデータを変換→対象列に対応する展開後の列だけ使って
-    軽い分類器(LogReg)を学習し、単一特徴のAUCを返す。
-    ※ pipe_hgb.fit(...) 実行後に呼んでください。
+    1つの seed について IF を学習・評価し、
+    AUC などのメトリクスと保存先を dict で返す。
+    出力は OUT_DIR/seed_{seed}/ 以下にまとめる。
     """
-    prep = pipe_hgb.named_steps["prep"]
-    # フルを一度だけ変換
-    Xt_tr = prep.transform(X_train)
-    Xt_te = prep.transform(X_test)
-    # 展開後の列名を取得
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    out_dir_seed = ensure_outdir(Path(OUT_DIR) / f"seed_{seed}")
+
+    # --- 特徴量とラベルを作成 ---
+    need_cols = ["Label", "srcip"] + CAT_COLS + NUM_COLS
+    work = df[need_cols].copy()
+
+    X = work.drop(columns=["Label"])
+    y = work["Label"].astype(int)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=TEST_SIZE,
+        random_state=seed,
+        stratify=y,
+    )
+
+    # --- 埋め込み付与（train/test で別モデル） ---
+    X_train, emb_cols = attach_srcip_embedding(
+        X_train.copy(), wv_train, mean_vec_train, ip_col="srcip"
+    )
+    X_test, _ = attach_srcip_embedding(
+        X_test.copy(), wv_test, mean_vec_test, ip_col="srcip"
+    )
+
+    ALL_NUM_COLS = NUM_COLS + emb_cols
+
+    # 前処理パイプライン（OneHot + 数値＋埋め込み）
+    cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    num_transformer = "passthrough"
+
+    preprocess = ColumnTransformer(
+        transformers=[
+            ("cat", cat_transformer, CAT_COLS),
+            ("num", num_transformer, ALL_NUM_COLS),
+        ],
+        remainder="drop",
+    )
+
+    # --- Benign のみで IF 学習 ---
+    mask_benign_train = (y_train == BENIGN_LABEL)
+    X_train_benign = X_train[mask_benign_train]
+
+    iso_clf = IsolationForest(
+        n_estimators=300,
+        max_samples="auto",
+        contamination="auto",
+        random_state=seed,
+        n_jobs=-1,
+    )
+
+    pipe_iso = Pipeline([
+        ("prep", preprocess),
+        ("clf", iso_clf),
+    ])
+
+    pipe_iso.fit(X_train_benign)
+
+    # --- スコア & メトリクス ---
+    dec = pipe_iso.decision_function(X_test)  # 高いほど正常
+    anom_score = -dec                         # 高いほど異常
+
     try:
-        out_names = prep.get_feature_names_out(X.columns)
-    except Exception:
-        # 古いsklearn用フォールバック
-        out_names = []
-        for name, trans, cols in prep.transformers_:
-            if name == "remainder" and trans == "drop":
-                continue
-            if hasattr(trans, "get_feature_names_out"):
-                base = trans.get_feature_names_out(cols)
-                out_names.extend([f"{name}__{b}" for b in base])
-            else:
-                out_names.extend([f"{name}__{c}" for c in cols])
-        out_names = np.array(out_names, dtype=object)
-    # 対象列に対応する展開後インデックス（OneHotは複数列）
-    if col in CAT_COLS:
-        prefix = f"cat__{col}_"
-        mask = np.array([n.startswith(prefix) for n in out_names])
+        roc_if = roc_auc_score(y_test, anom_score)
+    except ValueError:
+        roc_if = None
+
+    try:
+        ap_if = average_precision_score(y_test, anom_score)
+    except ValueError:
+        ap_if = None
+
+    # しきい値は例として 0.0（= decision_function < 0 を異常）
+    y_pred_if = (anom_score > 0.0).astype(int)
+    cm_if = confusion_matrix(y_test, y_pred_if).tolist()
+
+    rep_if = RunReport(
+        setting=f"one_class_isolation_forest_seed_{seed}",
+        n_train=int(mask_benign_train.sum()),
+        n_test=len(y_test),
+        roc_auc=roc_if,
+        ap=ap_if,
+        threshold_desc="decision_function<0 を異常（異常スコア>0）として判定",
+        confusion=cm_if,
+        notes=f"seed={seed}, CAT={CAT_COLS}, NUM={NUM_COLS}, EMBED_DIM={len(emb_cols)}",
+    )
+    save_report_json(rep_if, out_dir_seed, "report_isoforest.json")
+
+    # 予測詳細
+    pred_if = pd.DataFrame({
+        "y_true": y_test.values,
+        "anom_score": anom_score,
+        "y_pred": y_pred_if,
+    })
+    pred_if.to_csv(out_dir_seed / "pred_isoforest.csv", index=False)
+
+    print(f"[seed={seed}] ROC-AUC:", roc_if, " AP:", ap_if)
+    print(f"[seed={seed}] Confusion matrix:\n", np.array(cm_if))
+
+    # ROC曲線＆ヒストグラムも seed ごとに保存
+    save_and_print_roc(y_test.values, anom_score, out_dir_seed, prefix=f"isoforest_seed{seed}")
+    save_score_count_hist(y_test.values, anom_score, out_dir_seed,
+                          prefix=f"isoforest_seed{seed}", bins=60, thr=0.0)
+
+    return {
+        "seed": seed,
+        "n_train": int(mask_benign_train.sum()),
+        "n_test": len(y_test),
+        "roc_auc": roc_if,
+        "ap": ap_if,
+    }
+
+if __name__ == "__main__":
+    # 回したい seed の範囲（10〜20）
+    seeds = list(range(40, 51))
+
+    results = []
+    for s in seeds:
+        print(f"\n===== run seed={s} =====")
+        res = run_isoforest_for_seed(s)
+        results.append(res)
+
+    # DataFrame にして per-seed 結果を CSV で保存
+    results_df = pd.DataFrame(results)
+    results_csv = Path(OUT_DIR) / "isoforest_seed_results.csv"
+    results_df.to_csv(results_csv, index=False)
+    print("Per-seed results CSV:", results_csv)
+
+    # AUC の統計量を計算（None を除外）
+    aucs = [r["roc_auc"] for r in results if r["roc_auc"] is not None]
+
+    if aucs:
+        auc_mean = float(np.mean(aucs))
+        auc_max  = float(np.max(aucs))
+        auc_min  = float(np.min(aucs))
+        auc_med  = float(np.median(aucs))
+        auc_std  = float(np.std(aucs))
     else:
-        prefix = f"num__{col}"
-        mask = (out_names == prefix)
-    idx = np.where(mask)[0]
-    if idx.size == 0:
-        print(f"[WARN] no expanded features for {col}")
-        return np.nan
-    # 単一特徴（展開後の該当列群）のみで小さなモデルを学習
-    from sklearn.linear_model import LogisticRegression
-    clf = LogisticRegression(max_iter=1000)
-    clf.fit(Xt_tr[:, idx], y_train)
-    prob = clf.predict_proba(Xt_te[:, idx])[:, 1]
-    return roc_auc_score(y_test, prob)
+        auc_mean = auc_max = auc_min = auc_med = auc_std = None
 
-for col in ["src_emb_0","src_emb_28"]:
-    if col in X_test.columns:
-        print(col, single_feature_auc(col))
+    # まとめを JSON で保存
+    summary = {
+        "seeds": seeds,
+        "n_runs": len(aucs),
+        "roc_auc_mean": auc_mean,
+        "roc_auc_max":  auc_max,
+        "roc_auc_min":  auc_min,
+        "roc_auc_median": auc_med,
+        "roc_auc_std": auc_std,
+    }
+
+    summary_json = Path(OUT_DIR) / "isoforest_seed_summary.json"
+    with open(summary_json, "w") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
+
+    print("AUC summary JSON:", summary_json)
+    print("AUC stats:",
+          "mean=", auc_mean,
+          "max=", auc_max,
+          "min=", auc_min,
+          "median=", auc_med,
+          "std=", auc_std)
+

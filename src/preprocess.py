@@ -14,7 +14,7 @@ from typing import Tuple, Dict, Any
 SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UNSW-NB15": {
         #"usecols": ['Timestamp', 'Src IP Addr', 'Src Pt', 'Dst IP Addr', 'Dst Pt', 'Proto'],
-        "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto'],
+        "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto', 'Label'],
         "rename": {'Timestamp': 'ts', 'srcip': 'ip', 'dsport': 'port', 'proto': 'proto'},
         "sep": ',',
         "ip_col": ['srcip'],

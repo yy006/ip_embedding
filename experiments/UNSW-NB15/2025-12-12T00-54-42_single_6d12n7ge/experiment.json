@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "run_id": "2025-12-12T00-54-42_single_6d12n7ge",
+  "dataset": "UNSW-NB15",
+  "mode": "single",
+  "started_at": "2025-12-12T00-54-42",
+  "blocks": {
+    "1": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015012218_2015012220_by2h_DoS.csv",
+    "2": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015012220_2015012222_by2h_DoS.csv",
+    "3": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015012222_2015012300_by2h_DoS.csv",
+    "4": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015012300_2015012302_by2h_DoS.csv",
+    "5": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015021800_2015021802_by2h_DoS.csv",
+    "6": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/DoS/2015021802_2015021804_by2h_DoS.csv"
+  },
+  "params": {
+    "corpus": {
+      "services": "auto",
+      "without_duplicates": true,
+      "top_ports": 300
+    },
+    "word2vec": {
+      "c": 25,
+      "e": 50,
+      "epochs": 2,
+      "method": "incremental",
+      "alpha_anom": 1.0
+    }
+  },
+  "results": {
+    "overall": {
+      "total_wall_time_sec": 39.013
+    },
+    "blocks": {
+      "001": {
+        "block_id": 1,
+        "wall_time_sec": 39.0,
+        "model": {
+          "vocab_size": 23,
+          "vector_size": 50,
+          "model_path": "/workspace/experiments/UNSW-NB15/2025-12-12T00-54-42_single_6d12n7ge/models/model_block_001",
+          "dict_path": "/workspace/experiments/UNSW-NB15/2025-12-12T00-54-42_single_6d12n7ge/dicts/dict_block_001.json"
+        },
+        "corpus_stats": {
+          "ndocs": 522,
+          "min_words": 1,
+          "avg_words": 231.6992337164751,
+          "max_words": 22265,
+          "min_unique_words": 1,
+          "avg_unique_words": 3.9942528735632186,
+          "max_unique_words": 15
+        }
+      }
+    }
+  },
+  "finished_at": "2025-12-12T00-55-21"
+}

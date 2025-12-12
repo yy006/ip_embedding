@@ -2,16 +2,55 @@ import numpy as np
 from pandas import DatetimeIndex
 from config import LANGUAGES 
 
-def drop_duplicates(corpus):
-    new_corpus = []
-    for service in corpus:
-        _prev = np.array(service)
-        _next = np.roll(_prev, -1)
-        _next[-1] = 'NULL'
-        service = _prev[_prev!=_next]
-        new_corpus.append(list(service))
-    
-    return new_corpus
+def drop_duplicates(ips_seqs, label_seqs=None):
+    """
+    連続する同一 IP を削除する。
+    - label_seqs が与えられている場合は、IP を削った位置に対応する Label も一緒に削る。
+    - label_seqs が None の場合は、従来どおり IP のみ処理して返す。
+
+    Parameters
+    ----------
+    ips_seqs : list[list[str]]
+        各サービス/時間窓ごとの IP 列
+    label_seqs : list[list[int]] | None
+        各 IP に対応するラベル列 (任意)
+
+    Returns
+    -------
+    if label_seqs is None:
+        new_ips_seqs
+    else:
+        new_ips_seqs, new_label_seqs
+    """
+    new_ips_seqs = []
+    new_label_seqs = [] if label_seqs is not None else None
+
+    # ラベル付きの場合は zip でペアにして処理、ラベルなしなら None をダミーにして回す
+    if label_seqs is None:
+        iter_pairs = zip(ips_seqs, [None] * len(ips_seqs))
+    else:
+        iter_pairs = zip(ips_seqs, label_seqs)
+
+    for ips, labs in iter_pairs:
+        ips_arr = np.array(ips)
+
+        # 次の要素に1つシフトして末尾だけダミーを入れる（元実装と同じアイデア）
+        nxt_ips = np.roll(ips_arr, -1)
+        nxt_ips[-1] = "NULL"
+
+        # 連続する同一IPを落とすマスク
+        mask = ips_arr != nxt_ips
+
+        new_ips_seqs.append(list(ips_arr[mask]))
+
+        if labs is not None:
+            labs_arr = np.array(labs)
+            new_label_seqs.append(list(labs_arr[mask]))
+
+    if label_seqs is None:
+        return new_ips_seqs
+    else:
+        return new_ips_seqs, new_label_seqs
 
 def get_top_ports(dev, TOP):
     try: dev = dev.drop(columns=['serv'])
@@ -68,9 +107,12 @@ def get_corpus(data, without_duplicates=True, services='auto', top_ports=None):
             raise Exception('top_ports parameter missing. Provide the number '\
                             'of top ports to use as services')
         data = get_top_ports(data, top_ports)
-        rows = data.groupby(['serv', 'hour']).agg({'ip':list})\
-                   .sort_values(['hour', 'serv']).values
+        rows = data.groupby(['serv', 'hour']).agg({'ip':list, 'Label':list})\
+                   .sort_values(['hour', 'serv'])
         corpus = [x[0] for x in rows]
+
+        ips_seqs   = rows['ip'].tolist()
+        label_seqs = rows['Label'].tolist()
 
     elif services=='hybrid':
         if not isinstance(top_ports, int):
@@ -94,6 +136,6 @@ def get_corpus(data, without_duplicates=True, services='auto', top_ports=None):
         corpus = [x[0] for x in rows]
 
     if without_duplicates:
-        corpus = drop_duplicates(corpus)
+        ips_seqs, label_seqs = drop_duplicates(ips_seqs, label_seqs)
 
-    return corpus
+    return ips_seqs, label_seqs

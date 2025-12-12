@@ -7,94 +7,233 @@ import numpy as np
 import time
 from logger import ExperimentLogger, save_model_and_dict, corpus_basic_stats
 
+from pathlib import Path
+from copy import deepcopy
+import csv
+
 SAVE = True
 
-params = [{'corpus':{'services':'auto', 'without_duplicates':True, 'top_ports':300},
-       'word2vec':{'c':25, 'e':50, 'epochs':2, 'method':'incremental'}}]
+# === ベースのパラメータ（元の params[0] と同じ） ===
+BASE_PARAMS = {
+    'corpus': {
+        'services': 'auto',
+        'without_duplicates': True,
+        'top_ports': 300,
+    },
+    'word2vec': {
+        'c': 25,
+        'e': 50,
+        'epochs': 2,
+        'method': 'incremental',
+        'alpha_anom': 0.5,   # デフォルトα（スイープしないときに使う）
+    },
+}
 
-print(TRAINING_MODE)
-print(BLOCKS)
+print("CONFIG TRAINING_MODE:", TRAINING_MODE)
+print("BLOCKS:", BLOCKS)
 
-# === 実験ロガー初期化 ===
 artifact_root = ARTIFACTS_ROOT
-exp_logger = ExperimentLogger(
-    artifact_root=artifact_root,
-    dataset=DATASET,
-    mode=TRAINING_MODE,
-    blocks=BLOCKS,
-    params=params[0],
-)
 
-if TRAINING_MODE == "single":
-    exp_logger.block_start(1)
+# =========================
+# スイープ設定
+# =========================
 
-    raw_data = load_raw_data(len(BLOCKS))
-    filtered = filter_data(raw_data, BLOCKS, len(BLOCKS))
-    corpus = get_corpus(filtered, **params[0]['corpus'])
-    corpus_stats = corpus_basic_stats(corpus)
+# True にすると α をスイープ
+DO_ALPHA_SWEEP = True
+ALPHAS = [0, 0.1, 0.3, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]  # ここに試したい alpha のリスト
 
-    model = TorchWord2Vec(**params[0]['word2vec'])
-    model.train(corpus, save=SAVE)
+# True にすると single / incremental 両方回す
+DO_MODE_SWEEP = True
+RUN_MODES = ["incremental", "single"]  # 必要なら ["incremental"] などに変更
 
-    # === 実験ログ記録 ===
-    # モデル・辞書の保存先パス
-    mpath = exp_logger.model_path(1)
-    dpath = exp_logger.dict_path(1)
+# 対応表を保存するCSV （αをスイープする場合だけ使う）
+ALPHA_MAPPING_PATH = Path(artifact_root) / "alpha_sweep_mapping.csv"
 
-    # モデル・辞書の保存
-    save_model_and_dict(model, {}, mpath, dpath)
 
-    vocab_size = len(model.model.wv.index_to_key)
-    vector_size = getattr(model.model.wv, "vector_size", None) or getattr(model.model, "vector_size", 0)
+def append_alpha_mapping(mapping_path: Path,
+                         alpha: float,
+                         mode: str,
+                         run_id: str
+                         ):
+    """alpha と (mode, block_id, モデルファイル) の対応を CSV に追記"""
+    mapping_path = Path(mapping_path)
+    is_new = not mapping_path.exists()
 
-    exp_logger.block_end(
-        1,
-        vocab_size=vocab_size,
-        vector_size=vector_size,
-        corpus_stats=corpus_stats,
-        )
-    exp_logger.finalize()
+    with mapping_path.open("a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if is_new:
+            writer.writerow(["alpha_anom", "mode", "block_id", "model_path", "dict_path"])
+        writer.writerow([alpha, mode, str(run_id)])
 
-    print("wv:", model.model.wv)
 
-elif TRAINING_MODE == "incremental":
-    for block_id in BLOCKS.keys():
+def run_training(mode: str,
+                 params: dict,
+                 alpha: float | None = None,
+                 mapping_path: Path | None = None):
+    """
+    1回分の学習を実行する。
+    - mode: "single" or "incremental"
+    - params: {'corpus': {...}, 'word2vec': {...}}
+    - alpha: ログ出力・対応表用（None の場合もOK）
+    """
+    # === 実験ロガー初期化 ===
+    exp_logger = ExperimentLogger(
+        artifact_root=artifact_root,
+        dataset=DATASET,
+        mode=mode,      # ここを TRAINING_MODE ではなく引数の mode に
+        blocks=BLOCKS,
+        params=params,
+    )
+
+    alpha_info = f"[alpha={alpha}] " if alpha is not None else ""
+
+    if mode == "single":
+        block_id = 1
         t_block_start = time.perf_counter()
 
         exp_logger.block_start(block_id)
 
-        raw_data = load_raw_data(block_id)
-        filtered = filter_data(raw_data, BLOCKS, block_id)
-        corpus = get_corpus(filtered, **params[0]['corpus'])
-        corpus_stats = corpus_basic_stats(corpus)
+        # 元コードそのまま
+        raw_data = load_raw_data(len(BLOCKS))
+        filtered = filter_data(raw_data, BLOCKS, len(BLOCKS))
+        ips_seqs, label_seqs = get_corpus(filtered, **params['corpus'])
+        corpus_stats = corpus_basic_stats(ips_seqs)
 
-        model = TorchWord2Vec(**params[0]['word2vec'])
+        model = TorchWord2Vec(**params['word2vec'])
         t_train_start = time.perf_counter()
-        model.train(corpus, save=SAVE)
+        model.train_with_labels(
+                ips_seqs,
+                label_seqs,
+                batch_size=1024,
+                min_count=0,
+                save=SAVE,
+            )
         t_train_end = time.perf_counter()
 
-
-        # === 実験ログ記録 ===
-        # モデル・辞書の保存先パス
+        # モデル・辞書保存
         mpath = exp_logger.model_path(block_id)
         dpath = exp_logger.dict_path(block_id)
-    
-        # モデル・辞書の保存
         save_model_and_dict(model, {}, mpath, dpath)
 
         vocab_size = len(model.model.wv.index_to_key)
         vector_size = getattr(model.model.wv, "vector_size", None) or getattr(model.model, "vector_size", 0)
 
         t_block_end = time.perf_counter()
-        print(f"Block {block_id:03d} training time: {t_train_end - t_train_start:.2f} sec, total time: {t_block_end - t_block_start:.2f} sec")
+        print(
+            f"{alpha_info}[mode=single] "
+            f"Block {block_id:03d} training time: {t_train_end - t_train_start:.2f} sec, "
+            f"total time: {t_block_end - t_block_start:.2f} sec"
+        )
 
         exp_logger.block_end(
             block_id,
             vocab_size=vocab_size,
             vector_size=vector_size,
             corpus_stats=corpus_stats,
-            )
+        )
         exp_logger.finalize()
 
+        # αスイープ中なら対応表に記録
+        if mapping_path is not None and alpha is not None:
+            append_alpha_mapping(mapping_path, alpha, mode, exp_logger.run_id)
+
         print("wv:", model.model.wv)
-        #print("key:", model.model.wv.index_to_key)
+
+    elif mode == "incremental":
+        for block_id in BLOCKS.keys():
+            t_block_start = time.perf_counter()
+
+            exp_logger.block_start(block_id)
+
+            # 元コードそのまま
+            raw_data = load_raw_data(block_id)
+            filtered = filter_data(raw_data, BLOCKS, block_id)
+            ips_seqs, label_seqs = get_corpus(filtered, **params['corpus'])
+            corpus_stats = corpus_basic_stats(ips_seqs)
+
+            model = TorchWord2Vec(**params['word2vec'])
+
+            t_train_start = time.perf_counter()
+            model.train_with_labels(
+                ips_seqs,
+                label_seqs,
+                batch_size=1024,
+                min_count=0,
+                save=SAVE,
+            )
+            t_train_end = time.perf_counter()
+
+            # モデル・辞書保存
+            mpath = exp_logger.model_path(block_id)
+            dpath = exp_logger.dict_path(block_id)
+            save_model_and_dict(model, {}, mpath, dpath)
+
+            vocab_size = len(model.model.wv.index_to_key)
+            vector_size = getattr(model.model.wv, "vector_size", None) or getattr(model.model, "vector_size", 0)
+
+            t_block_end = time.perf_counter()
+            print(
+                f"{alpha_info}[mode=incremental] "
+                f"Block {block_id:03d} training time: {t_train_end - t_train_start:.2f} sec, "
+                f"total time: {t_block_end - t_block_start:.2f} sec"
+            )
+
+            exp_logger.block_end(
+                block_id,
+                vocab_size=vocab_size,
+                vector_size=vector_size,
+                corpus_stats=corpus_stats,
+            )
+            exp_logger.finalize()
+
+            # αスイープ中なら対応表に記録 各実行につき一度だけ
+            if mapping_path is not None and alpha is not None and block_id == 1:
+                append_alpha_mapping(mapping_path, alpha, mode, exp_logger.run_id)
+
+            print("wv:", model.model.wv)
+
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+
+# ======================================
+# メイン：スイープあり / なしを切り替え
+# ======================================
+if __name__ == "__main__":
+    # 「スイープしない」場合:
+    # DO_ALPHA_SWEEP = False
+    # DO_MODE_SWEEP  = False
+    # としておけば、ほぼ元の挙動に戻る
+
+    if not DO_ALPHA_SWEEP and not DO_MODE_SWEEP:
+        # === 完全に「元と同じ」動き：config の TRAINING_MODE と BASE_PARAMS 1回分だけ ===
+        params = deepcopy(BASE_PARAMS)
+
+        # alpha は params の値をそのまま使う
+        alpha = params['word2vec'].get('alpha_anom', None)
+        run_training(TRAINING_MODE, params, alpha=alpha, mapping_path=None)
+
+    else:
+        # === αスイープ × モードスイープ ===
+        # モードを決める
+        modes = RUN_MODES if DO_MODE_SWEEP else [TRAINING_MODE]
+
+        # alpha の候補を決める
+        if DO_ALPHA_SWEEP:
+            alpha_list = ALPHAS
+        else:
+            alpha_list = [BASE_PARAMS['word2vec']['alpha_anom']]
+
+        for mode in modes:
+            for alpha in alpha_list:
+                print(f"\n===== mode={mode}, alpha={alpha} =====")
+
+                params = deepcopy(BASE_PARAMS)
+                params['word2vec']['alpha_anom'] = alpha
+
+                run_training(
+                    mode=mode,
+                    params=params,
+                    alpha=alpha,
+                    mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
+                )
