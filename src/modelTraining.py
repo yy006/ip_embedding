@@ -40,11 +40,11 @@ artifact_root = ARTIFACTS_ROOT
 
 # True にすると α をスイープ
 DO_ALPHA_SWEEP = True
-ALPHAS = [0, 0.1, 0.3, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]  # ここに試したい alpha のリスト
+ALPHAS = [0, 0, 0, 0, 0, 0, 4, 4, 4, 4]  # ここに試したい alpha のリスト
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["incremental", "single"]  # 必要なら ["incremental"] などに変更
+RUN_MODES = ["incremental"]  # 必要なら ["incremental"] などに変更
 
 # 対応表を保存するCSV （αをスイープする場合だけ使う）
 ALPHA_MAPPING_PATH = Path(artifact_root) / "alpha_sweep_mapping.csv"

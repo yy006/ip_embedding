@@ -468,6 +468,7 @@ class TorchWord2Vec:
                     #print("|||||Applying anomaly weights in train_from_pairs|||||")
                     flags = torch.from_numpy(flags_np[idx]).to(self.device)  # 0 or 1
                     weights = 1.0 + self.alpha_anom * flags
+                    print(loss_vec)
                     loss_vec = loss_vec * weights
 
                 loss = loss_vec.mean()

@@ -9,7 +9,7 @@ from typing import Literal
 ROOT = Path(__file__).resolve().parents[1]
 print("ROOT:", ROOT)
 DATASET = 'UNSW-NB15'
-
+'''
 ATTACK = "Exploits"  # "Worms" | "DoS" | "Analysis" | "Backdoor" | "Exploits" | "Fuzzers" | "Generic" | "Reconnaissance" | "Shellcode" | "Worms"
 PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
 
@@ -25,7 +25,7 @@ BLOCKS: dict[int, Path] = {
     5: DATA_PATH / f"2015021800_2015021802_by2h_{ATTACK}.csv",
     6: DATA_PATH / f"2015021802_2015021804_by2h_{ATTACK}.csv",
 }
-
+'''
 
 '''
 DATA = ROOT/'datasets'/DATASET
@@ -51,7 +51,7 @@ BLOCKS: dict[int, Path] = {
     #18: DATA_PATH / "2015021803_2015021804_by0.5h.csv",
 }
 '''
-'''
+
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
 BLOCKS: dict[int, Path] = {
@@ -62,7 +62,7 @@ BLOCKS: dict[int, Path] = {
     5: DATA_PATH / "2015021800_2015021802_by2h.csv",
     6: DATA_PATH / "2015021802_2015021804_by2h.csv",
 }
-'''
+
 '''
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / "UNSW-NB15_2_by1h"
