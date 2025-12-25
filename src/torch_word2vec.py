@@ -11,6 +11,16 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 
+def project_embeddings(model, R):
+    """
+    in_embed, out_embed の両方を ||e|| <= R に射影する
+    """
+    with torch.no_grad():
+        for emb in [model.in_embed.weight, model.out_embed.weight]:
+            norms = emb.norm(dim=1, keepdim=True)          # (V, 1)
+            scale = torch.clamp(R / (norms + 1e-8), max=1.0)
+            emb.mul_(scale)
+
 def build_pairs_with_flags(ips_seqs, label_seqs, token2id, window):
     pairs = []
     flags = []
@@ -127,6 +137,8 @@ class TorchWord2Vec:
         method=None,
         alpha_anom=0.0,            # 異常重みの強さ (0なら通常のSGNS)
         contrastive_lambda=0.0,    # 将来、contrastive lossを足す用
+        norm_radius=None,          # 埋め込みベクトルのノルム制約 (Noneなら制約なし)
+        normal_pull_lambda=0.0,    # 正常クラスタ引き寄せ用
     ):
         self.context_window = c
         self.embedding_size = e
@@ -136,6 +148,8 @@ class TorchWord2Vec:
         self.lr = lr
         self.alpha_anom = alpha_anom
         self.contrastive_lambda = contrastive_lambda
+        self.norm_radius = norm_radius
+        self.normal_pull_lambda = normal_pull_lambda
 
         self.token2id = {}
         self.id2token = {}
@@ -421,6 +435,10 @@ class TorchWord2Vec:
                 loss.backward()
                 optimizer.step()
 
+                # ★ ノルム制約（射影）
+                if self.norm_radius is not None:
+                    project_embeddings(self.model, self.norm_radius)
+
                 total_loss += loss.item() * B
 
             # 4-7. epoch 全体の平均 loss をログ出力
@@ -468,13 +486,18 @@ class TorchWord2Vec:
                     #print("|||||Applying anomaly weights in train_from_pairs|||||")
                     flags = torch.from_numpy(flags_np[idx]).to(self.device)  # 0 or 1
                     weights = 1.0 + self.alpha_anom * flags
-                    print(loss_vec)
+                    #print(loss_vec)
                     loss_vec = loss_vec * weights
 
                 loss = loss_vec.mean()
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
+                # ★ ノルム制約（射影）
+                if self.norm_radius is not None:
+                    project_embeddings(self.model, self.norm_radius)
+
                 total_loss += loss.item() * B
 
             print(f"[epoch {epoch+1}/{self.epochs}] loss={total_loss/num_pairs:.4f}")
@@ -506,6 +529,8 @@ class TorchWord2Vec:
             window=self.context_window,
         )
         print(f"{len(pairs_np)} labeled pairs generated.")
+        # Radiusの値を表示
+        print(f"Norm radius: {self.norm_radius}")
 
         # 3) そのまま train_from_pairs に渡して学習
         self.train_from_pairs(

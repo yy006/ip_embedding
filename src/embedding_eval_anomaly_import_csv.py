@@ -30,7 +30,7 @@ from dataclasses import dataclass, asdict
 
 # --- 手書きモード / CSVモード 切り替え ---
 USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_16.csv"  # CSVモード時に読むファイル
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_24.csv"  # CSVモード時に読むファイル
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"
@@ -390,8 +390,8 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
     if len(block_nums) < 2:
         raise ValueError(f"incremental なのにブロック数が2未満です: {block_nums}")
 
-    train_num = block_nums[-2]
-    test_num = block_nums[-1]
+    train_num = block_nums[-3]
+    test_num = block_nums[-2]
 
     train_key_blocks = str(train_num)
     test_key_blocks = str(test_num)
@@ -500,7 +500,7 @@ def run_isoforest_for_seed(seed: int) -> dict:
 
     iso_clf = IsolationForest(
         n_estimators=1000,
-        max_samples=2048,
+        max_samples="auto",
         contamination="auto",
         random_state=seed,
         n_jobs=-1,

@@ -30,7 +30,7 @@ BASE_PARAMS = {
 }
 
 print("CONFIG TRAINING_MODE:", TRAINING_MODE)
-print("CONFIG ATTACK (from config.py):", ATTACK)
+#print("CONFIG ATTACK (from config.py):", ATTACK)
 
 artifact_root = ARTIFACTS_ROOT
 
@@ -40,11 +40,14 @@ artifact_root = ARTIFACTS_ROOT
 
 # True にすると α をスイープ
 DO_ALPHA_SWEEP = True
-ALPHAS = [0, 0.1, 0.3, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+#ALPHAS = [0, 0.1, 0.3, 0.5, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["incremental", "single"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
+
+R_list = [None, 0.5, 1.0, 2.0, 10.0]  # ノルム制約の候補リスト
 
 # True にすると攻撃ラベルもスイープ
 DO_ATTACK_SWEEP = True
@@ -100,6 +103,7 @@ def append_alpha_mapping(
     mode: str,
     attack: str,
     run_id: str,
+    radius: float | None = None,
 ):
     """
     alpha, mode, attack, run_id の対応を CSV に追記。
@@ -112,8 +116,8 @@ def append_alpha_mapping(
         writer = csv.writer(f)
         if is_new:
             # attack も含めるが、eval側は alpha_anom/mode/run_id だけ見てもOK
-            writer.writerow(["alpha_anom", "mode", "attack", "run_id"])
-        writer.writerow([alpha, mode, attack, run_id])
+            writer.writerow(["alpha_anom", "mode", "attack", "run_id", "Radius"])
+        writer.writerow([alpha, mode, attack, run_id, radius])
 
 
 # =====================================================
@@ -127,6 +131,7 @@ def run_training(
     attack: str | None = None,
     alpha: float | None = None,
     mapping_path: Path | None = None,
+    radius: float | None = None,
 ):
     """
     1回分の学習を実行する。
@@ -260,7 +265,7 @@ def run_training(
 
         # incremental の run 全体に対して 1 回だけ run_id を記録する
         if mapping_path is not None and alpha is not None and attack is not None:
-            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id)
+            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id, radius)
 
     else:
         raise ValueError(f"Unknown mode: {mode}")
@@ -292,6 +297,9 @@ if __name__ == "__main__":
     else:
         alpha_list = [BASE_PARAMS['word2vec']['alpha_anom']]
 
+    # 1組み合わせあたりの繰り返し回数
+    REPEAT = 5
+
     for attack in attacks:
         # この ATTACK 用の BLOCKS を構築
         blocks = build_blocks_for_attack(attack)
@@ -304,16 +312,26 @@ if __name__ == "__main__":
 
         for mode in modes:
             for alpha in alpha_list:
-                print(f"\n===== attack={attack}, mode={mode}, alpha={alpha} =====")
+                for repeat_id in range(REPEAT):
+                    print(f"\n===== attack={attack}, mode={mode}, alpha={alpha} =====")
 
-                params = deepcopy(BASE_PARAMS)
-                params['word2vec']['alpha_anom'] = alpha
+                    params = deepcopy(BASE_PARAMS)
+                    params['word2vec']['alpha_anom'] = alpha
 
-                run_training(
-                    mode=mode,
-                    params=params,
-                    blocks=blocks,
-                    attack=attack,
-                    alpha=alpha,
-                    mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
-                )
+                    for R in R_list:
+                        print(f"\n----- norm_radius={R} -----")
+                        if R is not None:
+                            params['word2vec']['norm_radius'] = R
+                        else:
+                            if 'norm_radius' in params['word2vec']:
+                                del params['word2vec']['norm_radius']
+
+                        run_training(
+                            mode=mode,
+                            params=params,
+                            blocks=blocks,
+                            attack=attack,
+                            alpha=alpha,
+                            mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
+                            radius=R
+                        )

@@ -40,20 +40,27 @@ artifact_root = ARTIFACTS_ROOT
 
 # True にすると α をスイープ
 DO_ALPHA_SWEEP = True
-ALPHAS = [0, 0, 0, 0, 0, 0, 4, 4, 4, 4]  # ここに試したい alpha のリスト
+ALPHAS = [0, 0, 0, 0, 0, 0]  # ここに試したい alpha のリスト
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
 RUN_MODES = ["incremental"]  # 必要なら ["incremental"] などに変更
 
-# 対応表を保存するCSV （αをスイープする場合だけ使う）
-ALPHA_MAPPING_PATH = Path(artifact_root) / "alpha_sweep_mapping.csv"
+R_list = [None, 0.5, 1.0, 2.0, 10.0]  # ノルム制約の候補リスト
+
+# mappingのid生成
+rand8 = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz0123456789'), size=8))
+
+# alpha, mode, attack, run_id を記録するハッシュ化されたidを持つCSVのパス 
+ALPHA_MAPPING_PATH = Path(artifact_root) / ("alpha_sweep_mapping_" + rand8 + ".csv")
+
 
 
 def append_alpha_mapping(mapping_path: Path,
                          alpha: float,
                          mode: str,
-                         run_id: str
+                         run_id: str,
+                         radius: float | None = None
                          ):
     """alpha と (mode, block_id, モデルファイル) の対応を CSV に追記"""
     mapping_path = Path(mapping_path)
@@ -62,14 +69,16 @@ def append_alpha_mapping(mapping_path: Path,
     with mapping_path.open("a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if is_new:
-            writer.writerow(["alpha_anom", "mode", "block_id", "model_path", "dict_path"])
-        writer.writerow([alpha, mode, str(run_id)])
+            writer.writerow(["alpha_anom", "mode", "block_id", "Radius"])
+        writer.writerow([alpha, mode, run_id, radius])
 
 
 def run_training(mode: str,
                  params: dict,
                  alpha: float | None = None,
-                 mapping_path: Path | None = None):
+                 mapping_path: Path | None = None,
+                 radius: float | None = None
+                 ):
     """
     1回分の学習を実行する。
     - mode: "single" or "incremental"
@@ -188,7 +197,7 @@ def run_training(mode: str,
 
             # αスイープ中なら対応表に記録 各実行につき一度だけ
             if mapping_path is not None and alpha is not None and block_id == 1:
-                append_alpha_mapping(mapping_path, alpha, mode, exp_logger.run_id)
+                append_alpha_mapping(mapping_path, alpha, mode, exp_logger.run_id, radius)
 
             print("wv:", model.model.wv)
 
@@ -231,9 +240,18 @@ if __name__ == "__main__":
                 params = deepcopy(BASE_PARAMS)
                 params['word2vec']['alpha_anom'] = alpha
 
-                run_training(
-                    mode=mode,
-                    params=params,
-                    alpha=alpha,
-                    mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
-                )
+                for R in R_list:
+                    print(f"\n----- norm_radius={R} -----")
+                    if R is not None:
+                        params['word2vec']['norm_radius'] = R
+                    else:
+                        if 'norm_radius' in params['word2vec']:
+                            del params['word2vec']['norm_radius']
+
+                    run_training(
+                        mode=mode,
+                        params=params,
+                        alpha=alpha,
+                        mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
+                        radius=R
+                    )
