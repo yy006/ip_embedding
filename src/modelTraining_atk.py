@@ -47,14 +47,13 @@ ALPHAS = [0]
 DO_MODE_SWEEP = True
 RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
-R_list = [None, 0.5, 1.0, 2.0, 10.0]  # ノルム制約の候補リスト
+R_list = [None,0.25, 0.5, 1.0, 2.0]  # ノルム制約の候補リスト
+
+normal_pull_lambda_list = [1e-3, 5e-3]  # 正常点引き寄せ項のλ候補リスト
 
 # True にすると攻撃ラベルもスイープ
 DO_ATTACK_SWEEP = True
 ATTACK_LIST = [
-    "Worms",
-    "DoS",
-    "Analysis",
     "Backdoor",
     "Exploits",
     "Fuzzers",
@@ -104,6 +103,7 @@ def append_alpha_mapping(
     attack: str,
     run_id: str,
     radius: float | None = None,
+    normal_pull_lambda: float | None = None,
 ):
     """
     alpha, mode, attack, run_id の対応を CSV に追記。
@@ -116,8 +116,8 @@ def append_alpha_mapping(
         writer = csv.writer(f)
         if is_new:
             # attack も含めるが、eval側は alpha_anom/mode/run_id だけ見てもOK
-            writer.writerow(["alpha_anom", "mode", "attack", "run_id", "Radius"])
-        writer.writerow([alpha, mode, attack, run_id, radius])
+            writer.writerow(["alpha_anom", "mode", "attack", "run_id", "Radius", "normal_pull_lambda"])
+        writer.writerow([alpha, mode, attack, run_id, radius, normal_pull_lambda])
 
 
 # =====================================================
@@ -132,6 +132,8 @@ def run_training(
     alpha: float | None = None,
     mapping_path: Path | None = None,
     radius: float | None = None,
+    normal_pull_lambda: float | None = None,
+
 ):
     """
     1回分の学習を実行する。
@@ -265,7 +267,7 @@ def run_training(
 
         # incremental の run 全体に対して 1 回だけ run_id を記録する
         if mapping_path is not None and alpha is not None and attack is not None:
-            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id, radius)
+            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id, radius, normal_pull_lambda)
 
     else:
         raise ValueError(f"Unknown mode: {mode}")
@@ -326,12 +328,17 @@ if __name__ == "__main__":
                             if 'norm_radius' in params['word2vec']:
                                 del params['word2vec']['norm_radius']
 
-                        run_training(
-                            mode=mode,
-                            params=params,
-                            blocks=blocks,
-                            attack=attack,
-                            alpha=alpha,
-                            mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
-                            radius=R
-                        )
+                        for normal_pull_lambda in normal_pull_lambda_list:
+                            print(f"\n----- normal_pull_lambda={normal_pull_lambda} -----")
+                            params['word2vec']['normal_pull_lambda'] = normal_pull_lambda
+
+                            run_training(
+                                mode=mode,
+                                params=params,
+                                blocks=blocks,
+                                attack=attack,
+                                alpha=alpha,
+                                mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
+                                radius=R,
+                                normal_pull_lambda=normal_pull_lambda,
+                            )

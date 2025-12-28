@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "run_id": "2025-12-28T17-02-35_incremental_507tx0jq",
+  "dataset": "UNSW-NB15",
+  "mode": "incremental",
+  "started_at": "2025-12-28T17-02-35",
+  "blocks": {
+    "1": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015012218_2015012220_by2h_Reconnaissance.csv",
+    "2": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015012220_2015012222_by2h_Reconnaissance.csv",
+    "3": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015012222_2015012300_by2h_Reconnaissance.csv",
+    "4": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015012300_2015012302_by2h_Reconnaissance.csv",
+    "5": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015021800_2015021802_by2h_Reconnaissance.csv",
+    "6": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Reconnaissance/2015021802_2015021804_by2h_Reconnaissance.csv"
+  },
+  "params": {
+    "corpus": {
+      "services": "auto",
+      "without_duplicates": true,
+      "top_ports": 300
+    },
+    "word2vec": {
+      "c": 25,
+      "e": 50,
+      "epochs": 2,
+      "method": "incremental",
+      "alpha_anom": 0,
+      "normal_pull_lambda": 0.005,
+      "norm_radius": 1.0
+    }
+  },
+  "results": {
+    "overall": {
+      "total_wall_time_sec": 9.449
+    },
+    "blocks": {
+      "001": {
+        "block_id": 1,
+        "wall_time_sec": 9.43,
+        "model": {
+          "vocab_size": 15,
+          "vector_size": 50,
+          "model_path": "/workspace/experiments/UNSW-NB15/2025-12-28T17-02-35_incremental_507tx0jq/models/model_block_001",
+          "dict_path": "/workspace/experiments/UNSW-NB15/2025-12-28T17-02-35_incremental_507tx0jq/dicts/dict_block_001.json"
+        },
+        "corpus_stats": {
+          "ndocs": 301,
+          "min_words": 1,
+          "avg_words": 55.87043189368771,
+          "max_words": 4606,
+          "min_unique_words": 1,
+          "avg_unique_words": 2.6710963455149503,
+          "max_unique_words": 10
+        }
+      }
+    }
+  },
+  "finished_at": "2025-12-28T17-02-45"
+}

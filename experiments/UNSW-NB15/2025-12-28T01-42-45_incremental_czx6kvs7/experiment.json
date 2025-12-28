@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "run_id": "2025-12-28T01-42-45_incremental_czx6kvs7",
+  "dataset": "UNSW-NB15",
+  "mode": "incremental",
+  "started_at": "2025-12-28T01-42-45",
+  "blocks": {
+    "1": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015012218_2015012220_by2h_Analysis.csv",
+    "2": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015012220_2015012222_by2h_Analysis.csv",
+    "3": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015012222_2015012300_by2h_Analysis.csv",
+    "4": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015012300_2015012302_by2h_Analysis.csv",
+    "5": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015021800_2015021802_by2h_Analysis.csv",
+    "6": "/workspace/datasets/UNSW-NB15/UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h/Analysis/2015021802_2015021804_by2h_Analysis.csv"
+  },
+  "params": {
+    "corpus": {
+      "services": "auto",
+      "without_duplicates": true,
+      "top_ports": 300
+    },
+    "word2vec": {
+      "c": 25,
+      "e": 50,
+      "epochs": 2,
+      "method": "incremental",
+      "alpha_anom": 0,
+      "normal_pull_lambda": 0.001
+    }
+  },
+  "results": {
+    "overall": {},
+    "blocks": {}
+  }
+}

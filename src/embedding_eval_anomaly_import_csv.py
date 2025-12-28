@@ -30,7 +30,7 @@ from dataclasses import dataclass, asdict
 
 # --- 手書きモード / CSVモード 切り替え ---
 USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_24.csv"  # CSVモード時に読むファイル
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_a82g3rke.csv"  # CSVモード時に読むファイル
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"

@@ -490,6 +490,23 @@ class TorchWord2Vec:
                     loss_vec = loss_vec * weights
 
                 loss = loss_vec.mean()
+
+                # ★ 正常引力強化（normal pull）
+                if self.normal_pull_lambda > 0.0:
+                    flags = torch.from_numpy(flags_np[idx]).to(self.device)  # (B,)
+                    normal_mask = (flags == 0)
+
+                    if normal_mask.any():
+                        # center / context の埋め込みを直接取得
+                        v_c = self.model.in_embed(center_ids)   # (B, D)
+                        v_p = self.model.out_embed(pos_ids)     # (B, D)
+
+                        # 距離（二乗）
+                        pull_loss_vec = ((v_c - v_p) ** 2).sum(dim=1)  # (B,)
+                        pull_loss = pull_loss_vec[normal_mask].mean()
+
+                        loss = loss + self.normal_pull_lambda * pull_loss
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()

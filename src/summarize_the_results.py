@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_ROOT = Path(ROOT) / "eval"
 BASE_DIR = ARTIFACTS_ROOT / "ノルム制約攻撃全部乗せ"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_24.csv"
+CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_wwtocsvg.csv"
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)
 
