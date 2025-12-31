@@ -45,15 +45,18 @@ ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["single"]  # 片方だけ試したいときはここを編集
 
-R_list = [None,0.25, 0.5, 1.0, 2.0]  # ノルム制約の候補リスト
+R_list = [0, 0.5, 1, 2]  # ノルム制約の候補リスト
 
-normal_pull_lambda_list = [1e-3, 5e-3]  # 正常点引き寄せ項のλ候補リスト
+normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
 
 # True にすると攻撃ラベルもスイープ
 DO_ATTACK_SWEEP = True
 ATTACK_LIST = [
+    "Worms",
+    "DoS",
+    "Analysis",
     "Backdoor",
     "Exploits",
     "Fuzzers",
@@ -211,7 +214,7 @@ def run_training(
 
         # αスイープ中なら対応表に記録
         if mapping_path is not None and alpha is not None and attack is not None:
-            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id)
+            append_alpha_mapping(mapping_path, alpha, mode, attack, exp_logger.run_id, radius, normal_pull_lambda)
 
         print("wv:", model.model.wv)
 

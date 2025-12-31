@@ -95,7 +95,7 @@ BLOCKS: dict[int, Path] = {
 SERVICES = f'{DATA}/services/services.json'
 
 TrainingMode = Literal["single", "incremental"]
-TRAINING_MODE: TrainingMode = 'incremental'  # "single" or "incremental"
+TRAINING_MODE: TrainingMode = 'single'  # "single" or "incremental"
 
 ARTIFACTS_ROOT = Path(ROOT) / "experiments"
 

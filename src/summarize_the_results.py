@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 # =========================
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_ROOT = Path(ROOT) / "eval"
-BASE_DIR = ARTIFACTS_ROOT / "ノルム制約攻撃全部乗せ"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_wwtocsvg.csv"
+BASE_DIR = ARTIFACTS_ROOT / "pull_lambda_vs_R"
+CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_ezchq5wh.csv"
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)
 
@@ -63,6 +63,7 @@ for run_dir in BASE_DIR.iterdir():
         "mode": cfg.get("mode"),
         "attack": cfg.get("attack"),
         "Radius": cfg.get("Radius"),
+        "normal_pull_lambda": cfg.get("normal_pull_lambda"),
 
         # ---- 実験結果 ----
         "roc_auc_mean": result.get("roc_auc_mean"),
@@ -79,7 +80,7 @@ for run_dir in BASE_DIR.iterdir():
 # =========================
 summary_df = pd.DataFrame(records)
 summary_df = summary_df.sort_values(
-    ["attack", "mode", "alpha_anom", "Radius"],
+    ["attack", "mode", "alpha_anom", "Radius", "normal_pull_lambda"],
     ignore_index=True
 )
 
@@ -267,3 +268,86 @@ else:
     plt.close()
 
     print(f"[OK] figure saved -> {fig_path}")
+
+# =========================
+# 7. グラフ作成（AUC vs normal_pull_lambda, 平均, R固定, attackごと）
+# =========================
+
+FIXED_RADIUS_LIST = [None, 0.25, 0.5, 1.0, 2.0]
+
+LAMBDA_ORDER = [0, 0.001, 0.005, 0.01, 0.1]
+lambda_to_x = {v: i for i, v in enumerate(LAMBDA_ORDER)}
+
+# ---- ① 平均を取る ----
+df_lp_mean = (
+    summary_df
+    .groupby(
+        ["attack", "mode", "normal_pull_lambda", "Radius"],
+        as_index=False
+    )
+    .agg(
+        roc_auc_mean=("roc_auc_mean", "mean"),
+        roc_auc_std=("roc_auc_mean", "std"),
+        n_runs=("roc_auc_mean", "count"),
+    )
+)
+
+for FIXED_RADIUS in FIXED_RADIUS_LIST:
+
+    df_plot = df_lp_mean.copy()
+    df_plot["Radius"] = df_plot["Radius"].astype(float)
+    df_plot["normal_pull_lambda"] = df_plot["normal_pull_lambda"].astype(float)
+
+    # R を固定（None の場合は全体）
+    if FIXED_RADIUS is not None:
+        df_plot = df_plot[df_plot["Radius"] == FIXED_RADIUS]
+
+    if df_plot.empty:
+        print(f"[WARN] Radius={FIXED_RADIUS} のデータが存在しません")
+        continue
+
+    for attack, df_attack in df_plot.groupby("attack"):
+        plt.figure(figsize=(6, 4))
+
+        for mode, g in df_attack.groupby("mode"):
+            xs, ys = [], []
+
+            for v, auc in zip(
+                g["normal_pull_lambda"],
+                g["roc_auc_mean"]
+            ):
+                v_round = round(v, 6)
+                if v_round in lambda_to_x:
+                    xs.append(lambda_to_x[v_round])
+                    ys.append(auc)
+
+            plt.scatter(
+                xs,
+                ys,
+                label=mode,
+                s=90,
+            )
+
+        # ---- 軸設定 ----
+        plt.xticks(
+            range(len(LAMBDA_ORDER)),
+            [str(v) for v in LAMBDA_ORDER]
+        )
+        plt.xlabel("normal_pull_lambda")
+        plt.ylabel("AUC")
+        plt.ylim(0.4, 1.0)
+        plt.grid(True, axis="y")
+        plt.legend()
+        plt.title(f"AUC vs normal_pull_lambda (mean, R={FIXED_RADIUS}, {attack})")
+        plt.tight_layout()
+
+        fig_path = (
+            OUT_DIR
+            / f"auc_vs_pull_lambda_mean_R={FIXED_RADIUS}_attack={attack}.png"
+        )
+        plt.savefig(fig_path)
+        plt.close()
+
+        print(f"[OK] figure saved -> {fig_path}")
+
+
