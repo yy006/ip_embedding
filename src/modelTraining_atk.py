@@ -47,7 +47,7 @@ ALPHAS = [0]
 DO_MODE_SWEEP = True
 RUN_MODES = ["single"]  # 片方だけ試したいときはここを編集
 
-R_list = [0, 0.5, 1, 2]  # ノルム制約の候補リスト
+R_list = [0, 0.5, 1.0, 2.0]  # ノルム制約の候補リスト
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
 
@@ -274,7 +274,6 @@ def run_training(
 
     else:
         raise ValueError(f"Unknown mode: {mode}")
-
 
 # =====================================================
 # メイン：攻撃 / α / mode をスイープ
