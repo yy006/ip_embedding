@@ -32,6 +32,16 @@ from dataclasses import dataclass, asdict
 USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
 RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_hw8ii8c2.csv"  # CSVモード時に読むファイル
 
+#OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
+OUT_DIR_NAME = "ノルム制約各攻撃_single"
+
+# single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
+mode_single = True
+# train側path
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_osw7lu2p.csv"
+# test側path
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_txigea6j.csv"
+
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"
 
@@ -408,6 +418,38 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
         "embed_test_path": embed_test_path,
     }
 
+def resolve_paths_from_config_single(dataset: str, run_id: str) -> dict:
+    """
+    single 用（安全版）:
+      - input_csv : Attack が含まれる後ろ側 block
+      - embed_path: results["blocks"] に存在する最新の model
+    """
+    cfg = load_experiment_config(dataset, run_id)
+    blocks: dict = cfg["blocks"]
+    results_blocks: dict = cfg["results"]["blocks"]
+
+    block_nums = sorted(int(k) for k in blocks.keys())
+    if len(block_nums) < 2:
+        raise ValueError(f"single なのにブロック数が2未満です: {block_nums}")
+
+    # ===== input_csv: Attack が含まれる block =====
+    # 存在しない場合は無視
+    test_num = block_nums[4] if len(block_nums) > 4 else None  # 5番目の block を test に使う想定
+    input_csv = blocks[str(test_num)] if test_num is not None else None
+
+    # ===== embed_path: 実在する model block の最大 =====
+    model_block_nums = sorted(int(k) for k in results_blocks.keys())
+    if not model_block_nums:
+        raise ValueError("results.blocks に model が1つも存在しません")
+
+    model_num = model_block_nums[-1]
+    embed_path = results_blocks[f"{model_num:03d}"]["model"]["model_path"]
+
+    return {
+        "input_csv": input_csv,
+        "embed_path": embed_path,
+    }
+
 
 # ============================================================
 # グローバル（各runごとに上書きする）
@@ -713,7 +755,7 @@ def main_manual():
 # CSVモード（mode == incremental の行だけ回す）
 # ============================================================
 
-def main_from_csv():
+def main_from_csv_incremental():
     """
     alpha_anom,mode,run_id のCSVを読み込み、
     mode == "incremental" の行のみ run_id ごとに評価するモード
@@ -754,7 +796,7 @@ def main_from_csv():
         embed_test_path = paths["embed_test_path"]
 
         # run_id 単位で出力ディレクトリを分ける
-        OUT_DIR = ensure_outdir(Path("eval") / f"eval_anomaly_{DATASET}" / run_id)
+        OUT_DIR = ensure_outdir(Path("eval") / OUT_DIR_NAME / run_id)
         print("OUT_DIR:", OUT_DIR)
 
         df = load_csv(input_csv)
@@ -780,6 +822,119 @@ def main_from_csv():
 
         run_seeds_and_save_summary(list(SEED_RANGE))
 
+def main_from_csv_single():
+    """
+    single モード：
+    - 2つの CSV（A, B）を読み込む
+    - 各 CSV の run_id を上から順にペアリング
+    - それぞれ resolve_paths_from_config_incremental() に通して
+        embed_train_path / embed_test_path を得る
+    - A 側の input_csv を評価対象として使用
+    """
+    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global CAT_COLS, NUM_COLS, OUT_DIR
+    global CURRENT_RUN_ID, CURRENT_MODE, CURRENT_ALPHA
+
+    # =========================
+    # CSV 読み込み
+    # =========================
+    df_a = pd.read_csv(SINGLE_RUNS_CSV_A)
+    df_b = pd.read_csv(SINGLE_RUNS_CSV_B)
+
+    if "run_id" not in df_a.columns:
+        raise ValueError("CSV_A に run_id 列がありません")
+    if "run_id" not in df_b.columns:
+        raise ValueError("CSV_B に run_id 列がありません")
+
+    if len(df_a) != len(df_b):
+        raise ValueError(
+            f"CSV_A({len(df_a)}) と CSV_B({len(df_b)}) の行数が一致しません"
+        )
+
+    print(f"[INFO] single mode: {len(df_a)} pairs")
+
+    # =========================
+    # 上から順に処理
+    # =========================
+    for idx in range(len(df_a)):
+        run_id_a = str(df_a.iloc[idx]["run_id"])
+        run_id_b = str(df_b.iloc[idx]["run_id"])
+
+        CURRENT_RUN_ID = f"single_{idx:03d}"
+        CURRENT_MODE = "single"
+        CURRENT_ALPHA = None
+
+        print(
+            f"\n########## SINGLE idx={idx} ##########\n"
+            f"run_id_A = {run_id_a}\n"
+            f"run_id_B = {run_id_b}"
+        )
+
+        # =========================
+        # run_id → パス変換
+        # =========================
+        paths_a = resolve_paths_from_config_single(DATASET, run_id_a)
+        paths_b = resolve_paths_from_config_single(DATASET, run_id_b)
+
+        # A 側を train embedding に使用
+        embed_train_path = paths_a["embed_path"]
+
+        # B 側を評価用 CSV と test embedding に使用
+        input_csv = paths_b["input_csv"]
+        embed_test_path = paths_b["embed_path"]
+
+        print("input_csv:", input_csv)
+        print("embed_train_path:", embed_train_path)
+        print("embed_test_path:", embed_test_path)
+
+        # =========================
+        # 出力ディレクトリ
+        # =========================
+        OUT_DIR = ensure_outdir(
+            Path("eval")
+            / OUT_DIR_NAME
+            / f"single_{idx:03d}_A_{run_id_a}_B_{run_id_b}"
+        )
+        print("OUT_DIR:", OUT_DIR)
+
+        # =========================
+        # CSV 読み込み
+        # =========================
+        df = load_csv(input_csv)
+        if "Label" not in df.columns:
+            raise KeyError("Label 列が見つかりません。")
+        if "srcip" not in df.columns:
+            raise KeyError("srcip 列が見つかりません。")
+
+        # =========================
+        # 埋め込みロード
+        # =========================
+        model_train = load_embeddings(embed_train_path)
+        model_test = load_embeddings(embed_test_path)
+
+        wv_train = get_embedding_interface(model_train)
+        wv_test = get_embedding_interface(model_test)
+
+        mean_vec_train = compute_mean_vector(wv_train)
+        mean_vec_test = compute_mean_vector(wv_test)
+
+        # =========================
+        # 特徴量選択
+        # =========================
+        use_cols = select_existing_columns(df, USE_COLS_BASE)
+        CAT_COLS = [c for c in ["proto", "state", "service"] if c in use_cols]
+        NUM_COLS = [c for c in use_cols if c not in CAT_COLS]
+
+        print("USE_COLS:", use_cols)
+        print("CAT_COLS:", CAT_COLS)
+        print("NUM_COLS:", NUM_COLS)
+
+        # =========================
+        # IF 実行
+        # =========================
+        run_seeds_and_save_summary(list(SEED_RANGE))
+
+
 
 # ============================================================
 # エントリポイント
@@ -787,6 +942,9 @@ def main_from_csv():
 
 if __name__ == "__main__":
     if USE_RUNS_CSV:
-        main_from_csv()
+        if mode_single:
+            main_from_csv_single()
+        else:
+            main_from_csv_incremental()
     else:
         main_manual()

@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 # =========================
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_ROOT = Path(ROOT) / "eval"
-BASE_DIR = ARTIFACTS_ROOT / "pull_lambda_vs_R"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_ezchq5wh.csv"
+BASE_DIR = ARTIFACTS_ROOT / "ノルム制約各攻撃_single"
+CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_txigea6j.csv"
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)
 
@@ -272,7 +272,7 @@ else:
 # =========================
 # 7. グラフ作成（AUC vs normal_pull_lambda, 平均, R固定, attackごと）
 # =========================
-
+"""
 FIXED_RADIUS_LIST = [None, 0.25, 0.5, 1.0, 2.0]
 
 LAMBDA_ORDER = [0, 0.001, 0.005, 0.01, 0.1]
@@ -350,4 +350,4 @@ for FIXED_RADIUS in FIXED_RADIUS_LIST:
 
         print(f"[OK] figure saved -> {fig_path}")
 
-
+"""
