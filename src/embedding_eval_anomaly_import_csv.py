@@ -33,14 +33,14 @@ USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのinc
 RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_hw8ii8c2.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "ノルム制約各攻撃_single"
+OUT_DIR_NAME = "ノルム制約各攻撃_single_None"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
 mode_single = True
 # train側path
-SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_osw7lu2p.csv"
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_mtu4o41y.csv"
 # test側path
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_txigea6j.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_gq15fslw.csv"
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"

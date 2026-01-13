@@ -22,7 +22,7 @@ BASE_PARAMS = {
     },
     'word2vec': {
         'c': 25,
-        'e': 50,
+        'e': 12,
         'epochs': 2,
         'method': 'incremental',
         'alpha_anom': 0.5,   # デフォルトα（スイープしないときに使う）
@@ -45,22 +45,24 @@ ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["single"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
-R_list = [0, 0.25, 0.5, 0.75 ,1.0, 2.0]  # ノルム制約の候補リスト
+R_list = [None, 0.25, 0.5, 0.75 ,1.0]  # ノルム制約の候補リスト
+#R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
 
 # True にすると攻撃ラベルもスイープ
 DO_ATTACK_SWEEP = True
+
 ATTACK_LIST = [
-    "Worms",
+    "Generic",
     "DoS",
     "Analysis",
     "Backdoor",
     "Exploits",
     "Fuzzers",
-    "Generic",
+    "Worms",
     "Reconnaissance",
     "Shellcode",
 ]

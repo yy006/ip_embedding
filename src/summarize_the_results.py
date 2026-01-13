@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 # =========================
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_ROOT = Path(ROOT) / "eval"
-BASE_DIR = ARTIFACTS_ROOT / "ノルム制約各攻撃_single"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_txigea6j.csv"
+BASE_DIR = ARTIFACTS_ROOT / "ノルム制約各攻撃_single_まとめ"
+CONFIG_CSV = BASE_DIR / "output5.csv"
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)
 
