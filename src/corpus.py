@@ -112,7 +112,6 @@ def get_corpus(data, without_duplicates=True, services='auto', top_ports=None):
         corpus = [x[0] for x in rows]
 
         ips_seqs   = rows['ip'].tolist()
-        label_seqs = rows['Label'].tolist()
 
     elif services=='hybrid':
         if not isinstance(top_ports, int):
@@ -136,6 +135,6 @@ def get_corpus(data, without_duplicates=True, services='auto', top_ports=None):
         corpus = [x[0] for x in rows]
 
     if without_duplicates:
-        ips_seqs, label_seqs = drop_duplicates(ips_seqs, label_seqs)
+        ips_seqs = drop_duplicates(ips_seqs)
 
-    return ips_seqs, label_seqs
+    return ips_seqs

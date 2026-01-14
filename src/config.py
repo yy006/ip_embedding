@@ -11,7 +11,7 @@ print("ROOT:", ROOT)
 DATASET = 'UNSW-NB15'
 
 ATTACK = "Exploits"  # "Worms" | "DoS" | "Analysis" | "Backdoor" | "Exploits" | "Fuzzers" | "Generic" | "Reconnaissance" | "Shellcode" | "Worms"
-PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
+PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_with_class_name_by2h"
 
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / PREPROCESS / ATTACK

@@ -10,6 +10,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
+print("cuda available:", torch.cuda.is_available())
+print("device count:", torch.cuda.device_count())
+print("device name:", torch.cuda.get_device_name(0))
 
 def project_embeddings(model, R):
     """
@@ -154,8 +157,12 @@ class TorchWord2Vec:
         self.token2id = {}
         self.id2token = {}
         self.model = None
-
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        '''
+        self.device = device or torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        '''
+        self.device = torch.device("cpu")
 
     class _WVWrapper:
         """
@@ -228,7 +235,11 @@ class TorchWord2Vec:
         freqs = np.array([counter[t] for t in tokens], dtype=np.float64)
         freqs = freqs ** 0.75
         freqs = freqs / freqs.sum()
-        self.unigram_table = torch.tensor(freqs, dtype=torch.float32)
+        self.unigram_table = torch.tensor(
+            freqs,
+            dtype=torch.float32,
+            device=self.device,   # ★ これを追加
+        )
 
     def _corpus_to_pairs(self, corpus):
         """
@@ -383,6 +394,7 @@ class TorchWord2Vec:
 
             total_loss = 0.0
             for start in range(0, num_pairs, batch_size):
+
                 end = min(start + batch_size, num_pairs)
                 idx = perm[start:end]          # このバッチで使う pair のインデックス
                 B = end - start                # 実際のバッチサイズ（末尾は batch_size 未満になる）
@@ -400,33 +412,15 @@ class TorchWord2Vec:
                     replacement=True,
                 ).view(B, self.neg_k).to(self.device)                             # (B, K)
 
+                if epoch == 0 and start == 0:
+                    print("Using device:", self.device)
+                    print("model:", next(self.model.parameters()).device)
+                    print("unigram:", self.unigram_table.device)
+                    print("center_ids:", center_ids.device)
+                    print("neg_ids:", neg_ids.device)
+
                 # 4-3. SGNS のサンプルごとの loss ベクトル (B,) を計算
                 loss_vec = self.model(center_ids, pos_ids, neg_ids)
-
-                # 4-4. レベル3: 異常スコアに基づく重み付け（任意）
-                #      - anomaly_scores が与えられ、alpha_anom > 0 のときだけ有効
-                #      - center / pos のトークンそれぞれからスコアを取り、
-                #        ペアの平均スコアで重み (1 + alpha_anom * score) を掛ける。
-                if anomaly_scores is not None and self.alpha_anom > 0.0:
-                    # center / context のスコアを取得（存在しないトークンは 0 とみなす）
-                    c_scores = torch.tensor(
-                        [anomaly_scores.get(self.id2token[int(i)], 0.0) for i in center_ids.cpu()],
-                        dtype=torch.float32,
-                        device=self.device,
-                    )
-                    o_scores = torch.tensor(
-                        [anomaly_scores.get(self.id2token[int(i)], 0.0) for i in pos_ids.cpu()],
-                        dtype=torch.float32,
-                        device=self.device,
-                    )
-                    pair_scores = 0.5 * (c_scores + o_scores)           # (B,)
-                    weights = 1.0 + self.alpha_anom * pair_scores       # (B,)
-                    loss_vec = loss_vec * weights
-
-                # 4-5. contrastive loss などを将来追加する場合はここで loss_vec に足す
-                # if self.contrastive_lambda > 0:
-                #     contrastive_loss_per_sample = ...
-                #     loss_vec = loss_vec + self.contrastive_lambda * contrastive_loss_per_sample
 
                 # 4-6. ミニバッチ平均の loss を計算して逆伝播
                 loss = loss_vec.mean()
@@ -482,30 +476,7 @@ class TorchWord2Vec:
 
                 loss_vec = self.model(center_ids, pos_ids, neg_ids)
 
-                if self.alpha_anom > 0.0:
-                    #print("|||||Applying anomaly weights in train_from_pairs|||||")
-                    flags = torch.from_numpy(flags_np[idx]).to(self.device)  # 0 or 1
-                    weights = 1.0 + self.alpha_anom * flags
-                    #print(loss_vec)
-                    loss_vec = loss_vec * weights
-
                 loss = loss_vec.mean()
-
-                # ★ 正常引力強化（normal pull）
-                if self.normal_pull_lambda > 0.0:
-                    flags = torch.from_numpy(flags_np[idx]).to(self.device)  # (B,)
-                    normal_mask = (flags == 0)
-
-                    if normal_mask.any():
-                        # center / context の埋め込みを直接取得
-                        v_c = self.model.in_embed(center_ids)   # (B, D)
-                        v_p = self.model.out_embed(pos_ids)     # (B, D)
-
-                        # 距離（二乗）
-                        pull_loss_vec = ((v_c - v_p) ** 2).sum(dim=1)  # (B,)
-                        pull_loss = pull_loss_vec[normal_mask].mean()
-
-                        loss = loss + self.normal_pull_lambda * pull_loss
 
                 optimizer.zero_grad()
                 loss.backward()

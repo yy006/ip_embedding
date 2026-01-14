@@ -29,14 +29,14 @@ from dataclasses import dataclass, asdict
 # ============================================================
 
 # --- 手書きモード / CSVモード 切り替え ---
-USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_hw8ii8c2.csv"  # CSVモード時に読むファイル
+USE_RUNS_CSV = False  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "2026-01-14T08-25-25_incremental_0oubd7l5.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "ノルム制約各攻撃_single_None"
+OUT_DIR_NAME = "次元数12"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
-mode_single = True
+mode_single = False
 # train側path
 SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_mtu4o41y.csv"
 # test側path

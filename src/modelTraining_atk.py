@@ -47,7 +47,7 @@ ALPHAS = [0]
 DO_MODE_SWEEP = True
 RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
-R_list = [None, 0.25, 0.5, 0.75 ,1.0]  # ノルム制約の候補リスト
+R_list = [None, 0.5 ,1.0, 5.0]  # ノルム制約の候補リスト
 #R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
@@ -174,15 +174,14 @@ def run_training(
 
         raw_data = load_raw_data(len(blocks))
         filtered = filter_data(raw_data, blocks, len(blocks))
-        ips_seqs, label_seqs = get_corpus(filtered, **params['corpus'])
+        ips_seqs = get_corpus(filtered, **params['corpus'])
         corpus_stats = corpus_basic_stats(ips_seqs)
 
         model = TorchWord2Vec(**params['word2vec'])
 
         t_train_start = time.perf_counter()
-        model.train_with_labels(
+        model.train(
             ips_seqs,
-            label_seqs,
             batch_size=1024,
             min_count=0,
             save=SAVE,
@@ -228,15 +227,14 @@ def run_training(
 
             raw_data = load_raw_data(block_id)
             filtered = filter_data(raw_data, blocks, block_id)
-            ips_seqs, label_seqs = get_corpus(filtered, **params['corpus'])
+            ips_seqs = get_corpus(filtered, **params['corpus'])
             corpus_stats = corpus_basic_stats(ips_seqs)
 
             model = TorchWord2Vec(**params['word2vec'])
 
             t_train_start = time.perf_counter()
-            model.train_with_labels(
+            model.train(
                 ips_seqs,
-                label_seqs,
                 batch_size=1024,
                 min_count=0,
                 save=SAVE,
