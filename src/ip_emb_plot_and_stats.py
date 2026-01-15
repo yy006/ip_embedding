@@ -11,8 +11,8 @@ from sklearn.decomposition import PCA
 # 設定（ここだけ編集すればOK）
 # ============================================================
 
-RUN_ID = "2026-01-14T21-50-02_single_91jsmsl8"
-BLOCK_ID = 1
+RUN_ID = "2026-01-15T01-40-45_incremental_ve5hgbcs"
+BLOCK_ID = 5
 DATASET = "UNSW-NB15"
 
 ARTIFACTS_ROOT = Path("/workspace/experiments")

@@ -36,14 +36,14 @@ from sklearn.model_selection import train_test_split
 # 設定エリア
 # ============================================================
 
-USE_RUNS_CSV = True
+USE_RUNS_CSV = False
 RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_cqg5oyqr_R強いもの除く.csv"
 
-MANUAL_RUN_ID = "2026-01-14T20-15-01_incremental_ivrzvw1c"
+MANUAL_RUN_ID = "2026-01-15T01-40-45_incremental_ve5hgbcs"
 
-OUT_DIR_NAME = "ノルム制約各攻撃_single_攻撃多い_12次元_permutationtest_dupfalse"
+OUT_DIR_NAME = "abcde_testttt"
 
-mode_single = True
+mode_single = False
 SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_i1luql2r.csv"
 SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_s9850pgk.csv"
 
@@ -608,6 +608,53 @@ def main_from_csv_incremental():
 
         pd.DataFrame(results).to_csv(OUT_DIR/"seed_results.csv", index=False)
 
+def main_manual():
+    """
+    手動設定 run_id 用モード
+    """
+    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global CAT_COLS, NUM_COLS, OUT_DIR
+
+    run_id = MANUAL_RUN_ID
+
+    print(f"\n########## run_id={run_id} ##########")
+
+    paths = resolve_paths_from_config_incremental(DATASET, run_id)
+    input_csv = paths["input_csv"]
+    embed_train_path = paths["embed_train_path"]
+    embed_test_path = paths["embed_test_path"]
+
+    # run_id 単位で出力ディレクトリを分ける
+    OUT_DIR = ensure_outdir(Path("eval") / OUT_DIR_NAME / run_id)
+    print("OUT_DIR:", OUT_DIR)
+
+    df = load_csv(input_csv)
+    if "Label" not in df.columns:
+        raise KeyError("Label 列が見つかりません。")
+    if "srcip" not in df.columns:
+        raise KeyError("srcip 列が見つかりません。")
+
+    model_train = load_embeddings(embed_train_path)
+    model_test = load_embeddings(embed_test_path)
+    wv_train = get_embedding_interface(model_train)
+    wv_test = get_embedding_interface(model_test)
+    mean_vec_train = compute_mean_vector(wv_train)
+    mean_vec_test = compute_mean_vector(wv_test)
+
+    use_cols = [c for c in USE_COLS_BASE if c in df.columns]
+    CAT_COLS = [c for c in ["proto", "state", "service"] if c in use_cols]
+    NUM_COLS = [c for c in use_cols if c not in CAT_COLS]
+
+    print("USE_COLS:", use_cols)
+    print("CAT_COLS:", CAT_COLS)
+    print("NUM_COLS:", NUM_COLS)
+
+    results = []
+    for s in SEED_RANGE:
+        results.append(run_isoforest_for_seed(s))
+
+    pd.DataFrame(results).to_csv(OUT_DIR/"seed_results.csv", index=False)
+
 # ============================================================
 # エントリポイント
 # ============================================================
@@ -618,3 +665,5 @@ if __name__ == "__main__":
             main_from_csv_single()
         else:
             main_from_csv_incremental()
+    else:
+        main_manual()

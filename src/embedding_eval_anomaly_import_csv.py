@@ -30,10 +30,10 @@ from dataclasses import dataclass, asdict
 
 # --- 手書きモード / CSVモード 切り替え ---
 USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_lg2rtcy0.csv"  # CSVモード時に読むファイル
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_a82g3rke_None.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "testtttt"
+OUT_DIR_NAME = "incre_dup_true_IFdataimprove"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
 mode_single = False
@@ -46,10 +46,11 @@ SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_s9850pgk.csv"
 DATASET = "UNSW-NB15"
 
 # --- 手書きモード用: 実験IDとパス ---
-MANUAL_EXPERIMENT = "2026-01-14T20-15-01_incremental_ivrzvw1c"
+MANUAL_EXPERIMENT = "2026-01-15T01-40-45_incremental_ve5hgbcs"
 MANUAL_JSON_PATH = f"experiments/{DATASET}/{MANUAL_EXPERIMENT}/experiment.json"
 
 # 手書きモードでテストに使うブロックID（experiment.json の blocks のキー）
+MANUAL_TRAIN_BLOCK = "4"
 MANUAL_TEST_BLOCK = "5"
 
 # 手書きモードで使う埋め込みパス（必要に応じて編集）
@@ -158,6 +159,19 @@ def ip_to_vec(ip: str, wv, mean_vec: np.ndarray) -> np.ndarray:
         return wv.get_vector(ip)
     except KeyError:
         return mean_vec  # 語彙外は平均ベクトルで埋める
+    
+def permutation_importance_group(pipe, X, y, groups, n_repeat=5):
+    base = roc_auc_score(y, -pipe.decision_function(X))
+    out = {}
+    for g, cols in groups.items():
+        drops = []
+        for _ in range(n_repeat):
+            Xp = X.copy()
+            for c in cols:
+                Xp[c] = np.random.permutation(Xp[c].values)
+            drops.append(base - roc_auc_score(y, -pipe.decision_function(Xp)))
+        out[g] = {"mean_drop_auc": float(np.mean(drops))}
+    return base, out
 
 
 def attach_srcip_embedding(
@@ -229,6 +243,23 @@ def random_oversample_minority(
     )
     return X_os, y_os
 
+def random_undersample_majority(
+    X, y,
+    label_neg=BENIGN_LABEL,
+    max_neg=5000,
+    random_state=None,
+):
+    idx_neg = np.where(y == label_neg)[0]
+    if len(idx_neg) <= max_neg:
+        return X, y
+
+    rng = np.random.default_rng(random_state)
+    drop_idx = rng.choice(idx_neg, size=len(idx_neg) - max_neg, replace=False)
+
+    keep = np.ones(len(y), dtype=bool)
+    keep[drop_idx] = False
+
+    return X.iloc[keep].reset_index(drop=True), y.iloc[keep].reset_index(drop=True)
 
 
 def save_and_print_roc(y_true, score, out_dir: Path, prefix: str):
@@ -393,30 +424,21 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
     を返す。
     """
     cfg = load_experiment_config(dataset, run_id)
-    blocks: dict = cfg["blocks"]
-    results_blocks: dict = cfg["results"]["blocks"]
+    blocks = cfg["blocks"]
+    results_blocks = cfg["results"]["blocks"]
 
     block_nums = sorted(int(k) for k in blocks.keys())
-    if len(block_nums) < 2:
-        raise ValueError(f"incremental なのにブロック数が2未満です: {block_nums}")
+    if len(block_nums) < 3:
+        raise ValueError("B4/B5 を使うには最低 3 block 必要")
 
-    train_num = block_nums[-3]
-    test_num = block_nums[-2]
-    print( "train_num, test_num =",train_num, test_num )
-
-    train_key_blocks = str(train_num)
-    test_key_blocks = str(test_num)
-    train_key_results = f"{train_num:03d}"
-    test_key_results = f"{test_num:03d}"
-
-    input_csv = blocks[test_key_blocks]
-    embed_train_path = results_blocks[train_key_results]["model"]["model_path"]
-    embed_test_path = results_blocks[test_key_results]["model"]["model_path"]
+    train_num = block_nums[-3]   # B4
+    test_num  = block_nums[-2]   # B5
 
     return {
-        "input_csv": input_csv,
-        "embed_train_path": embed_train_path,
-        "embed_test_path": embed_test_path,
+        "train_csv": blocks[str(train_num)],
+        "test_csv":  blocks[str(test_num)],
+        "embed_train_path": results_blocks[f"{train_num:03d}"]["model"]["model_path"],
+        "embed_test_path":  results_blocks[f"{test_num:03d}"]["model"]["model_path"],
     }
 
 def resolve_paths_from_config_single(dataset: str, run_id: str) -> dict:
@@ -433,11 +455,6 @@ def resolve_paths_from_config_single(dataset: str, run_id: str) -> dict:
     if len(block_nums) < 2:
         raise ValueError(f"single なのにブロック数が2未満です: {block_nums}")
 
-    # ===== input_csv: Attack が含まれる block =====
-    # 存在しない場合は無視
-    test_num = block_nums[4] if len(block_nums) > 4 else None  # 5番目の block を test に使う想定
-    input_csv = blocks[str(test_num)] if test_num is not None else None
-
     # ===== embed_path: 実在する model block の最大 =====
     model_block_nums = sorted(int(k) for k in results_blocks.keys())
     if not model_block_nums:
@@ -447,7 +464,7 @@ def resolve_paths_from_config_single(dataset: str, run_id: str) -> dict:
     embed_path = results_blocks[f"{model_num:03d}"]["model"]["model_path"]
 
     return {
-        "input_csv": input_csv,
+        "csv": blocks[f"{block_nums[-1]}"],
         "embed_path": embed_path,
     }
 
@@ -456,7 +473,8 @@ def resolve_paths_from_config_single(dataset: str, run_id: str) -> dict:
 # グローバル（各runごとに上書きする）
 # ============================================================
 
-df: pd.DataFrame
+df_train: pd.DataFrame
+df_test: pd.DataFrame
 wv_train = None
 wv_test = None
 mean_vec_train: np.ndarray
@@ -479,7 +497,7 @@ def run_isoforest_for_seed(seed: int) -> dict:
     AUC などのメトリクスと保存先を dict で返す。
     出力は OUT_DIR/seed_{seed}/ 以下にまとめる。
     """
-    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global df_train, df_test, wv_train, wv_test, mean_vec_train, mean_vec_test
     global CAT_COLS, NUM_COLS, OUT_DIR
     global CURRENT_RUN_ID, CURRENT_MODE, CURRENT_ALPHA
 
@@ -490,20 +508,30 @@ def run_isoforest_for_seed(seed: int) -> dict:
 
     # --- 特徴量とラベルを作成 ---
     need_cols = ["Label", "srcip"] + CAT_COLS + NUM_COLS
-    work = df[need_cols].copy()
 
-    X = work.drop(columns=["Label"])
-    y = work["Label"].astype(int)
+    # ==========
+    # B4 → train
+    # ==========
+    work_train = df_train[need_cols].copy()
+    X_train = work_train.drop(columns=["Label"])
+    y_train = work_train["Label"].astype(int)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=TEST_SIZE,
+    # ==========
+    # B5 → test
+    # ==========
+    work_test = df_test[need_cols].copy()
+    X_test = work_test.drop(columns=["Label"])
+    y_test = work_test["Label"].astype(int)
+
+    X_test, y_test = random_undersample_majority(
+        X_test, y_test,
+        label_neg=BENIGN_LABEL,
+        max_neg=10000,
         random_state=seed,
-        stratify=y,
     )
 
-        # ★ テストデータ側の Attack をランダム・オーバーサンプリング（任意）
+
+    # ★ テストデータ側の Attack をランダム・オーバーサンプリング（任意）
     if USE_TEST_OVERSAMPLING:
         X_test, y_test = random_oversample_minority(
             X_test,
@@ -561,6 +589,16 @@ def run_isoforest_for_seed(seed: int) -> dict:
     # --- スコア & メトリクス ---
     dec = pipe_iso.decision_function(X_test)  # 高いほど正常
     anom_score = -dec  # 高いほど異常
+
+    # ===== 検証② permutation =====
+    base_auc, perm = permutation_importance_group(
+        pipe_iso,
+        X_test,
+        y_test,
+        {"embedding": emb_cols, "non_embedding": CAT_COLS + NUM_COLS},
+    )
+    with open(out_dir_seed / "permutation_importance_group.json", "w") as f:
+        json.dump({"base_auc": base_auc, "groups": perm}, f, indent=2)
 
     from sklearn.tree import plot_tree
     #一つの木を可視化
@@ -707,7 +745,7 @@ def main_manual():
     """
     これまで通り、MANUAL_EXPERIMENT で1本だけ評価するモード
     """
-    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global df_train, df_test, wv_train, wv_test, mean_vec_train, mean_vec_test
     global CAT_COLS, NUM_COLS, OUT_DIR
     global CURRENT_RUN_ID, CURRENT_MODE, CURRENT_ALPHA
 
@@ -718,21 +756,19 @@ def main_manual():
     with open(MANUAL_JSON_PATH, "r") as f:
         config = json.load(f)
 
-    input_csv = config["blocks"][MANUAL_TEST_BLOCK]
+    train_csv = config["blocks"][MANUAL_TRAIN_BLOCK]
+    test_csv  = config["blocks"][MANUAL_TEST_BLOCK]
     embed_train_path = MANUAL_EMBED_PKL_TRAIN
     embed_test_path = MANUAL_EMBED_PKL_TEST
+    
+    df_train = load_csv(train_csv)
+    df_test = load_csv(test_csv)
 
     rand8 = "".join(
         np.random.choice(list("abcdefghijklmnopqrstuvwxyz0123456789"), size=8)
     )
     OUT_DIR = ensure_outdir(f"eval/eval_anomaly_{MANUAL_EXPERIMENT}_{rand8}")
     print("OUT_DIR:", OUT_DIR)
-
-    df = load_csv(input_csv)
-    if "Label" not in df.columns:
-        raise KeyError("Label 列が見つかりません。")
-    if "srcip" not in df.columns:
-        raise KeyError("srcip 列が見つかりません。")
 
     model_train = load_embeddings(embed_train_path)
     model_test = load_embeddings(embed_test_path)
@@ -741,7 +777,7 @@ def main_manual():
     mean_vec_train = compute_mean_vector(wv_train)
     mean_vec_test = compute_mean_vector(wv_test)
 
-    use_cols = select_existing_columns(df, USE_COLS_BASE)
+    use_cols = select_existing_columns(df_train, USE_COLS_BASE)
     CAT_COLS = [c for c in ["proto", "state", "service"] if c in use_cols]
     NUM_COLS = [c for c in use_cols if c not in CAT_COLS]
 
@@ -761,7 +797,7 @@ def main_from_csv_incremental():
     alpha_anom,mode,run_id のCSVを読み込み、
     mode == "incremental" の行のみ run_id ごとに評価するモード
     """
-    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global df_train, df_test, wv_train, wv_test, mean_vec_train, mean_vec_test
     global CAT_COLS, NUM_COLS, OUT_DIR
     global CURRENT_RUN_ID, CURRENT_MODE, CURRENT_ALPHA
 
@@ -792,19 +828,16 @@ def main_from_csv_incremental():
         )
 
         paths = resolve_paths_from_config_incremental(DATASET, run_id)
-        input_csv = paths["input_csv"]
+
+        df_train = load_csv(paths["train_csv"])
+        df_test  = load_csv(paths["test_csv"])
+
         embed_train_path = paths["embed_train_path"]
         embed_test_path = paths["embed_test_path"]
 
         # run_id 単位で出力ディレクトリを分ける
         OUT_DIR = ensure_outdir(Path("eval") / OUT_DIR_NAME / run_id)
         print("OUT_DIR:", OUT_DIR)
-
-        df = load_csv(input_csv)
-        if "Label" not in df.columns:
-            raise KeyError("Label 列が見つかりません。")
-        if "srcip" not in df.columns:
-            raise KeyError("srcip 列が見つかりません。")
 
         model_train = load_embeddings(embed_train_path)
         model_test = load_embeddings(embed_test_path)
@@ -813,7 +846,7 @@ def main_from_csv_incremental():
         mean_vec_train = compute_mean_vector(wv_train)
         mean_vec_test = compute_mean_vector(wv_test)
 
-        use_cols = select_existing_columns(df, USE_COLS_BASE)
+        use_cols = select_existing_columns(df_train, USE_COLS_BASE)
         CAT_COLS = [c for c in ["proto", "state", "service"] if c in use_cols]
         NUM_COLS = [c for c in use_cols if c not in CAT_COLS]
 
@@ -832,7 +865,7 @@ def main_from_csv_single():
         embed_train_path / embed_test_path を得る
     - A 側の input_csv を評価対象として使用
     """
-    global df, wv_train, wv_test, mean_vec_train, mean_vec_test
+    global df_train, df_test, wv_train, wv_test, mean_vec_train, mean_vec_test
     global CAT_COLS, NUM_COLS, OUT_DIR
     global CURRENT_RUN_ID, CURRENT_MODE, CURRENT_ALPHA
 
@@ -877,14 +910,17 @@ def main_from_csv_single():
         paths_a = resolve_paths_from_config_single(DATASET, run_id_a)
         paths_b = resolve_paths_from_config_single(DATASET, run_id_b)
 
+        train_csv_a = paths_a["csv"]
+        train_csv_b = paths_b["csv"]
+        df_train = load_csv(train_csv_a)
+        df_test = load_csv(train_csv_b)
+
         # A 側を train embedding に使用
         embed_train_path = paths_a["embed_path"]
-
-        # B 側を評価用 CSV と test embedding に使用
-        input_csv = paths_b["input_csv"]
         embed_test_path = paths_b["embed_path"]
 
-        print("input_csv:", input_csv)
+        print("input_csv (from train):", train_csv_a)
+        print("input_csv (from test):", train_csv_b)
         print("embed_train_path:", embed_train_path)
         print("embed_test_path:", embed_test_path)
 
@@ -897,15 +933,6 @@ def main_from_csv_single():
             / f"single_{idx:03d}_A_{run_id_a}_B_{run_id_b}"
         )
         print("OUT_DIR:", OUT_DIR)
-
-        # =========================
-        # CSV 読み込み
-        # =========================
-        df = load_csv(input_csv)
-        if "Label" not in df.columns:
-            raise KeyError("Label 列が見つかりません。")
-        if "srcip" not in df.columns:
-            raise KeyError("srcip 列が見つかりません。")
 
         # =========================
         # 埋め込みロード
@@ -922,7 +949,7 @@ def main_from_csv_single():
         # =========================
         # 特徴量選択
         # =========================
-        use_cols = select_existing_columns(df, USE_COLS_BASE)
+        use_cols = select_existing_columns(df_train, USE_COLS_BASE)
         CAT_COLS = [c for c in ["proto", "state", "service"] if c in use_cols]
         NUM_COLS = [c for c in use_cols if c not in CAT_COLS]
 
