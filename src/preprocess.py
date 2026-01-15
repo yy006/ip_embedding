@@ -120,16 +120,21 @@ def load_filter_from_chunk(blocks, block_number):
 
     return set(counts[counts>=10].index)
 
+def load_filter_from_all(raw_data, min_count=10):
+    counts = raw_data.value_counts('ip')
+    return set(counts[counts >= min_count].index)
+
+
 
 ###############################################################################
 # Main functions
 ###############################################################################
-def load_raw_data(block_number):
-    if TRAINING_MODE == "single":
-        flist = [BLOCKS[k+1] for k in range(block_number)]
+def load_raw_data(blocks, block_number, mode):
+    if mode == "single":
+        flist = [blocks[k+1] for k in range(block_number)]
 
-    elif TRAINING_MODE == "incremental":
-        flist = [BLOCKS[block_number]]
+    elif mode == "incremental":
+        flist = [blocks[block_number]]
 
     pool, iterable = pool_setup(flist)
     df_list = pool.map(get_data, iterable)
@@ -140,9 +145,13 @@ def load_raw_data(block_number):
 
 #breakpoint()
 
-def filter_data(raw_data, blocks, block_number):
-    #10回以上出現するIPアドレスを抽出
-    filt = load_filter_from_chunk(blocks, block_number)
+def filter_data(raw_data, blocks, block_number, mode):
+    if mode == "single":
+        filt = load_filter_from_all(raw_data, min_count=10)
+    elif mode == "incremental":    
+        #10回以上出現するIPアドレスを抽出
+        #filt = load_filter_from_chunk(blocks, block_number)
+        filt = load_filter_from_all(raw_data, min_count=10)
     # Filter IPS
     filtered = raw_data[raw_data.ip.isin(set(filt))]
     # Datetime index (TODO: datetime index処理が必要かの考慮)

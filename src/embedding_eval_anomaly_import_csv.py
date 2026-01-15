@@ -29,24 +29,24 @@ from dataclasses import dataclass, asdict
 # ============================================================
 
 # --- 手書きモード / CSVモード 切り替え ---
-USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_a82g3rke_None.csv"  # CSVモード時に読むファイル
+USE_RUNS_CSV = False  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_xuea63i4.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "incre_dup_true_IFdataimprove"
+OUT_DIR_NAME = "testpost"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
-mode_single = False
+mode_single = True
 # train側path
-SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_i1luql2r.csv"
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_nkk00t0r - コピー.csv"
 # test側path
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_s9850pgk.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_jwiyjc78 - コピー.csv"
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"
 
 # --- 手書きモード用: 実験IDとパス ---
-MANUAL_EXPERIMENT = "2026-01-15T01-40-45_incremental_ve5hgbcs"
+MANUAL_EXPERIMENT = "2026-01-15T18-58-33_incremental_kaen3rpw"
 MANUAL_JSON_PATH = f"experiments/{DATASET}/{MANUAL_EXPERIMENT}/experiment.json"
 
 # 手書きモードでテストに使うブロックID（experiment.json の blocks のキー）
@@ -74,13 +74,13 @@ MIN_ATTACK_IN_TEST    = 500     # テスト中の Attack(異常) を最低何件
 # 特徴量候補（存在しない列は自動スキップ）
 USE_COLS_BASE = [
     "proto",
+    "service",
     "state",
     "dur",
     "sbytes",
     "dbytes",
     "sloss",
     "dloss",
-    "service",
     "Sload",
     "Spkts",
     "Dpkts",
@@ -549,16 +549,17 @@ def run_isoforest_for_seed(seed: int) -> dict:
         X_test.copy(), wv_test, mean_vec_test, ip_col="srcip"
     )
 
-    ALL_NUM_COLS = NUM_COLS + emb_cols
+    #ALL_NUM_COLS = NUM_COLS + emb_cols
+    from sklearn.preprocessing import StandardScaler
 
     # 前処理パイプライン（OneHot + 数値＋埋め込み）
-    cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=True)
     num_transformer = "passthrough"
-
     preprocess = ColumnTransformer(
         transformers=[
-            ("cat", cat_transformer, CAT_COLS),
-            ("num", num_transformer, ALL_NUM_COLS),
+        ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CAT_COLS),
+        ("num", StandardScaler(), NUM_COLS),
+        ("emb", StandardScaler(), emb_cols),
         ],
         remainder="drop",
     )
@@ -589,7 +590,7 @@ def run_isoforest_for_seed(seed: int) -> dict:
     # --- スコア & メトリクス ---
     dec = pipe_iso.decision_function(X_test)  # 高いほど正常
     anom_score = -dec  # 高いほど異常
-
+    """
     # ===== 検証② permutation =====
     base_auc, perm = permutation_importance_group(
         pipe_iso,
@@ -599,7 +600,8 @@ def run_isoforest_for_seed(seed: int) -> dict:
     )
     with open(out_dir_seed / "permutation_importance_group.json", "w") as f:
         json.dump({"base_auc": base_auc, "groups": perm}, f, indent=2)
-
+    """
+    
     from sklearn.tree import plot_tree
     #一つの木を可視化
     estimator = iso_clf.estimators_[0]

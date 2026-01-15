@@ -347,7 +347,7 @@ class TorchWord2Vec:
         if save:
             self.save_model()
     '''
-    def train(self, corpus, anomaly_scores=None, batch_size=1024, min_count=0, save=False):
+    def train(self, corpus, anomaly_scores=None, batch_size=1024, min_count=0, save=False, incremental=False):
         """
         corpus: list[list[str]]
             トークン列（IPアドレスなど）のリスト。各要素が1文（1フロー列）に対応。
@@ -363,9 +363,25 @@ class TorchWord2Vec:
             True の場合、学習終了後に self.save_model() で PyTorch モデルを保存する。
         """
 
-        # 1. 語彙構築（コーパスから token2id, id2token, unigram_table を作る）
-        self._build_vocab(corpus, min_count=min_count)
-        vocab_size = len(self.token2id)
+        # ============================================================
+        # 1. vocab / model の準備
+        # 語彙構築（コーパスから token2id, id2token, unigram_table を作る）
+        # ============================================================
+        if not incremental:
+            # --- single 学習 ---
+            self._build_vocab(corpus, min_count=min_count)
+            vocab_size = len(self.token2id)
+
+            self.model = SkipGramNegSampling(
+                vocab_size, self.embedding_size
+            ).to(self.device)
+
+        else:
+            # --- incremental 学習 ---
+            if self.model is None:
+                raise RuntimeError("incremental=True but model is not loaded")
+            # token2id / id2token / unigram_table は既に存在する前提
+            vocab_size = len(self.token2id)
 
         # ============================================================
         # 2. corpus → (center, context) を NumPy 配列で直接生成
@@ -584,9 +600,57 @@ class TorchWord2Vec:
         vocab_size = len(self.token2id)
         self.model = SkipGramNegSampling(vocab_size, self.embedding_size).to(self.device)
         self.model.load_state_dict(state["model_state"])
-        self.model.eval()
+        # ★ incremental 用：train モードにする
+        self.model.train()
 
         self._attach_wv()
+
+    def expand_vocab(self, corpus):
+        """
+        Incremental 用の語彙拡張
+        - corpus: list[list[str]]  (block k のみ)
+        """
+
+        device = self.model.in_embed.weight.device
+        dim = self.model.in_embed.embedding_dim
+
+        # --- 1. corpus に含まれる token 集合 ---
+        new_tokens = set(tok for seq in corpus for tok in seq)
+        new_tokens = new_tokens - set(self.token2id.keys())
+
+        # --- 2. 既存 embedding を取得 ---
+        in_weight = self.model.in_embed.weight.data
+        out_weight = self.model.out_embed.weight.data
+
+        # --- 3. 新 token があれば追加 ---
+        if new_tokens:
+            for tok in sorted(new_tokens):
+                new_id = len(self.token2id)
+
+                self.token2id[tok] = new_id
+                self.id2token[new_id] = tok
+
+                init_vec = torch.randn(dim, device=device) * 0.01
+
+                in_weight = torch.cat([in_weight, init_vec.unsqueeze(0)], dim=0)
+                out_weight = torch.cat([out_weight, init_vec.unsqueeze(0)], dim=0)
+
+            self.model.in_embed = torch.nn.Embedding.from_pretrained(
+                in_weight, freeze=False
+            ).to(device)
+
+            self.model.out_embed = torch.nn.Embedding.from_pretrained(
+                out_weight, freeze=False
+            ).to(device)
+
+        # --- 4. ★ 常に unigram_table を保証する ---
+        V = len(self.token2id)
+        self.unigram_table = torch.ones(
+            V,
+            dtype=torch.float32,
+            device=self.device,
+        ) / V
+
 
     # ====== 埋め込みの取得 ======
     def get_embeddings(self, ips, labels=None):

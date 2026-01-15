@@ -12,7 +12,7 @@ from copy import deepcopy
 import csv
 
 import torch
-torch.set_num_threads(3)
+torch.set_num_threads(2)
 torch.set_num_interop_threads(1)
 
 
@@ -28,7 +28,7 @@ BASE_PARAMS = {
     },
     'word2vec': {
         'c': 25,
-        'e': 12,
+        'e': 50,
         'epochs': 2,
         'method': 'incremental',
         'alpha_anom': 0.5,   # デフォルトα（スイープしないときに使う）
@@ -53,7 +53,7 @@ ALPHAS = [0]
 DO_MODE_SWEEP = True
 RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
-R_list = [None, 5.0]  # ノルム制約の候補リスト
+R_list = [None]  # ノルム制約の候補リスト
 #R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
@@ -64,10 +64,10 @@ DO_ATTACK_SWEEP = True
 ATTACK_LIST = [
     "Generic",
     "DoS",
-    "Analysis",
-    "Backdoor",
     "Exploits",
     "Fuzzers",
+    "Analysis",
+    "Backdoor",
     "Worms",
     "Reconnaissance",
     "Shellcode",
@@ -178,8 +178,8 @@ def run_training(
 
         exp_logger.block_start(block_id)
 
-        raw_data = load_raw_data(len(blocks))
-        filtered = filter_data(raw_data, blocks, len(blocks))
+        raw_data = load_raw_data(blocks, len(blocks), mode="single")
+        filtered = filter_data(raw_data, blocks, len(blocks), mode="single")
         ips_seqs = get_corpus(filtered, **params['corpus'])
         corpus_stats = corpus_basic_stats(ips_seqs)
 
@@ -231,26 +231,58 @@ def run_training(
 
             exp_logger.block_start(block_id)
 
-            raw_data = load_raw_data(block_id)
-            filtered = filter_data(raw_data, blocks, block_id)
+            raw_data = load_raw_data(blocks, block_id, mode="incremental")
+            filtered = filter_data(raw_data, blocks, block_id, mode="incremental")
             ips_seqs = get_corpus(filtered, **params['corpus'])
             corpus_stats = corpus_basic_stats(ips_seqs)
 
-            model = TorchWord2Vec(**params['word2vec'])
+            print(f"Block {block_id}")
+            print("  raw rows:", len(raw_data))
+            print("  filtered rows:", len(filtered))
+            print("  #sentences:", len(ips_seqs))
+            print("  total tokens:", sum(len(s) for s in ips_seqs))
 
-            t_train_start = time.perf_counter()
-            model.train(
-                ips_seqs,
-                batch_size=1024,
-                min_count=0,
-                save=SAVE,
-            )
-            t_train_end = time.perf_counter()
+            # ============================================================
+            # 2. モデル準備
+            # ============================================================
+            if block_id == 1:
+                # --- 初回 block：single と同じ初期学習 ---
+                model = TorchWord2Vec(**params["word2vec"])
+
+                t_train_start = time.perf_counter()
+                model.train(
+                    ips_seqs,
+                    batch_size=1024,
+                    min_count=0,
+                    save=False,
+                    incremental=False,   # ★ single
+                )
+                t_train_end = time.perf_counter()
+
+            else:
+                # --- block k >= 2：incremental ---
+                model = TorchWord2Vec(**params["word2vec"])
+
+                # 前 block のモデルをロード
+                model.load_model(exp_logger.model_path(block_id - 1))
+
+                # 新 block に含まれる token を vocab に追加
+                model.expand_vocab(ips_seqs)
+
+                t_train_start = time.perf_counter()
+                model.train(
+                    ips_seqs,
+                    batch_size=1024,
+                    min_count=0,         # incremental では使われない
+                    save=False,
+                    incremental=True,    # ★ ここが最重要
+                )
+                t_train_end = time.perf_counter()
 
             # モデル・辞書保存
             mpath = exp_logger.model_path(block_id)
             dpath = exp_logger.dict_path(block_id)
-            save_model_and_dict(model, {}, mpath, dpath)
+            save_model_and_dict(model, model.token2id, mpath, dpath)
 
             vocab_size = len(model.model.wv.index_to_key)
             vector_size = getattr(model.model.wv, "vector_size", None) or getattr(
@@ -270,9 +302,9 @@ def run_training(
                 vector_size=vector_size,
                 corpus_stats=corpus_stats,
             )
-            exp_logger.finalize()
+        exp_logger.finalize()
 
-            print("wv:", model.model.wv)
+        print("wv:", model.model.wv)
 
         # incremental の run 全体に対して 1 回だけ run_id を記録する
         if mapping_path is not None and alpha is not None and attack is not None:

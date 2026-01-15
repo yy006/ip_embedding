@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_ROOT = Path(ROOT) / "eval"
 #BASE_DIR = ARTIFACTS_ROOT / "ノルム制約各攻撃_single_攻撃多い_12次元_dupfalse"
 #CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_s9850pgk.csv"
-BASE_DIR = ARTIFACTS_ROOT / "incre_restttt"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_lg2rtcy0.csv"
-#BASE_DIR = ARTIFACTS_ROOT / "testtttt"
-#CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_s9850pgk.csv"
+#BASE_DIR = ARTIFACTS_ROOT / "incre_restttt"
+#CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_lg2rtcy0.csv"
+BASE_DIR = ARTIFACTS_ROOT / "testtttt"
+CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_s9850pgk.csv"
 
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)
