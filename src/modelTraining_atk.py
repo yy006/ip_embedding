@@ -11,13 +11,19 @@ from pathlib import Path
 from copy import deepcopy
 import csv
 
+import torch
+torch.set_num_threads(3)
+torch.set_num_interop_threads(1)
+
+
+
 SAVE = True
 
 # === ベースのパラメータ（元の params[0] と同じ） ===
 BASE_PARAMS = {
     'corpus': {
         'services': 'auto',
-        'without_duplicates': True,
+        'without_duplicates': False,
         'top_ports': 300,
     },
     'word2vec': {
@@ -47,7 +53,7 @@ ALPHAS = [0]
 DO_MODE_SWEEP = True
 RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
-R_list = [None, 0.5 ,1.0, 5.0]  # ノルム制約の候補リスト
+R_list = [None, 5.0]  # ノルム制約の候補リスト
 #R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト

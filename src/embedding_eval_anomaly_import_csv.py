@@ -29,35 +29,35 @@ from dataclasses import dataclass, asdict
 # ============================================================
 
 # --- 手書きモード / CSVモード 切り替え ---
-USE_RUNS_CSV = False  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "2026-01-14T08-25-25_incremental_0oubd7l5.csv"  # CSVモード時に読むファイル
+USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_lg2rtcy0.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "次元数12"
+OUT_DIR_NAME = "testtttt"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
 mode_single = False
 # train側path
-SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_mtu4o41y.csv"
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_i1luql2r.csv"
 # test側path
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_gq15fslw.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_s9850pgk.csv"
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"
 
 # --- 手書きモード用: 実験IDとパス ---
-MANUAL_EXPERIMENT = "2025-12-05T04-36-49_incremental_1a9temld"
+MANUAL_EXPERIMENT = "2026-01-14T20-15-01_incremental_ivrzvw1c"
 MANUAL_JSON_PATH = f"experiments/{DATASET}/{MANUAL_EXPERIMENT}/experiment.json"
 
 # 手書きモードでテストに使うブロックID（experiment.json の blocks のキー）
-MANUAL_TEST_BLOCK = "6"
+MANUAL_TEST_BLOCK = "5"
 
 # 手書きモードで使う埋め込みパス（必要に応じて編集）
 MANUAL_EMBED_PKL_TRAIN = (
-    f"/workspace/experiments/{DATASET}/{MANUAL_EXPERIMENT}/models/model_block_005"
+    f"/workspace/experiments/{DATASET}/{MANUAL_EXPERIMENT}/models/model_block_004"
 )
 MANUAL_EMBED_PKL_TEST = (
-    f"/workspace/experiments/{DATASET}/{MANUAL_EXPERIMENT}/models/model_block_006"
+    f"/workspace/experiments/{DATASET}/{MANUAL_EXPERIMENT}/models/model_block_005"
 )
 
 # seed を回す範囲
@@ -402,6 +402,7 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
 
     train_num = block_nums[-3]
     test_num = block_nums[-2]
+    print( "train_num, test_num =",train_num, test_num )
 
     train_key_blocks = str(train_num)
     test_key_blocks = str(test_num)

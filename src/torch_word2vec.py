@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 
 print("cuda available:", torch.cuda.is_available())
 print("device count:", torch.cuda.device_count())
-print("device name:", torch.cuda.get_device_name(0))
+#print("device name:", torch.cuda.get_device_name(0))
 
 def project_embeddings(model, R):
     """
@@ -367,15 +367,33 @@ class TorchWord2Vec:
         self._build_vocab(corpus, min_count=min_count)
         vocab_size = len(self.token2id)
 
-        # 2. (center, context) ペア作成
-        #    - window サイズ self.context_window に基づいて skip-gram のペアを全列挙
-        #    - ここでは一度すべてメモリに載せて numpy 配列に変換しておく
-        pairs = self._corpus_to_pairs(corpus)
-        num_pairs = len(pairs)
-        print(num_pairs, "pairs generated.")
+        # ============================================================
+        # 2. corpus → (center, context) を NumPy 配列で直接生成
+        # ============================================================
+        centers = []
+        contexts = []
 
-        centers_np = np.array([c for (c, _) in pairs], dtype=np.int64)
-        contexts_np = np.array([o for (_, o) in pairs], dtype=np.int64)
+        for sent in corpus:
+            # token → id（UNK は捨てる）
+            ids = [self.token2id[t] for t in sent if t in self.token2id]
+            L = len(ids)
+
+            for i in range(L):
+                c = ids[i]
+                left = max(0, i - self.context_window)
+                right = min(L, i + self.context_window + 1)
+
+                for j in range(left, right):
+                    if i == j:
+                        continue
+                    centers.append(c)
+                    contexts.append(ids[j])
+
+        centers_np = np.asarray(centers, dtype=np.int64)
+        contexts_np = np.asarray(contexts, dtype=np.int64)
+        num_pairs = len(centers_np)
+
+        print(f"[train] {num_pairs} pairs generated")
 
         # 3. モデル & optimizer 準備
         #    - SkipGramNegSampling: center / context / negative の3種類の埋め込みから

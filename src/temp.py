@@ -37,13 +37,15 @@ from sklearn.model_selection import train_test_split
 # ============================================================
 
 USE_RUNS_CSV = True
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_a82g3rke.csv"
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_cqg5oyqr_R強いもの除く.csv"
 
-OUT_DIR_NAME = "ノルム制約各攻撃_incremental_埋め込みの寄与_knn_cosine_hybrid"
+MANUAL_RUN_ID = "2026-01-14T20-15-01_incremental_ivrzvw1c"
 
-mode_single = False
-SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_osw7lu2p.csv"
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_txigea6j.csv"
+OUT_DIR_NAME = "ノルム制約各攻撃_single_攻撃多い_12次元_permutationtest_dupfalse"
+
+mode_single = True
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_i1luql2r.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_s9850pgk.csv"
 
 DATASET = "UNSW-NB15"
 
@@ -531,7 +533,7 @@ def main_from_csv_single():
 
         results = []
         for s in SEED_RANGE:
-            results.append(run_knn_cosine_for_seed(s, k=20))
+            results.append(run_isoforest_for_seed(s))
 
         pd.DataFrame(results).to_csv(OUT_DIR/"seed_results.csv", index=False)
 
@@ -602,7 +604,7 @@ def main_from_csv_incremental():
 
         results = []
         for s in SEED_RANGE:
-            results.append(run_knn_hybrid_for_seed(s, k=20, alpha=0.5))
+            results.append(run_isoforest_for_seed(s))
 
         pd.DataFrame(results).to_csv(OUT_DIR/"seed_results.csv", index=False)
 
