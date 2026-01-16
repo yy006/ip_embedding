@@ -12,8 +12,8 @@ ARTIFACTS_ROOT = Path(ROOT) / "eval"
 #CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_s9850pgk.csv"
 #BASE_DIR = ARTIFACTS_ROOT / "incre_restttt"
 #CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_lg2rtcy0.csv"
-BASE_DIR = ARTIFACTS_ROOT / "testtttt"
-CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_s9850pgk.csv"
+BASE_DIR = ARTIFACTS_ROOT / "only_emb_12dupfalse_inc"
+CONFIG_CSV = BASE_DIR / "alpha_sweep_mapping_xuea63i4.csv"
 
 OUT_DIR = BASE_DIR / "summary"
 OUT_DIR.mkdir(exist_ok=True)

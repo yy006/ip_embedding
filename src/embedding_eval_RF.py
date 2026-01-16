@@ -30,18 +30,17 @@ from dataclasses import dataclass, asdict
 
 # --- 手書きモード / CSVモード 切り替え ---
 USE_RUNS_CSV = True  # False: 手書きEXPERIMENTで1本評価 / True: CSVのincremental run_id群を回す
-#RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_dlzf7wgh.csv"  # CSVモード時に読むファイル
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_xuea63i4.csv"  # CSVモード時に読むファイル
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "alpha_sweep_mapping_dlzf7wgh.csv"  # CSVモード時に読むファイル
 
 #OUT_DIR_NAME = f"eval_anomaly_{DATASET}"
-OUT_DIR_NAME = "only_emb_12dupfalse_sin"
+OUT_DIR_NAME = "RF_50dupfalse_inc"
 
 # single モード用のCSVファイルパス（RUNS_CSV_PATH と別に指定）
-mode_single = True
+mode_single = False
 # train側path
-SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_nkk00t0r.csv"
+SINGLE_RUNS_CSV_A = ARTIFACTS_ROOT / "alpha_sweep_mapping_ibvx1cqp.csv"
 # test側path
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_jwiyjc78.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "alpha_sweep_mapping_omxoncdd.csv"
 
 # --- 共通のデータセット名 ---
 DATASET = "UNSW-NB15"
@@ -74,27 +73,7 @@ MIN_ATTACK_IN_TEST    = 500     # テスト中の Attack(異常) を最低何件
 
 # 特徴量候補（存在しない列は自動スキップ）
 USE_COLS_BASE = [
-    "proto",
-    "service",
-    "state",
-    "dur",
-    "sbytes",
-    "dbytes",
-    "sloss",
-    "dloss",
-    "Sload",
-    "Spkts",
-    "Dpkts",
-    "swin",
-    "dwin",
-    "stcpb",
-    "dtcpb",
-    "smeansz",
-    "trans_depth",
-    "res_bdy_len",
-    "Sjit",
-    "Djit",
-    "sttl",
+"dur", "Spkts",
 ]
 
 # --- ラベル定義（※ 1=Attack, 0=Benign） ---
@@ -261,6 +240,34 @@ def random_undersample_majority(
     keep[drop_idx] = False
 
     return X.iloc[keep].reset_index(drop=True), y.iloc[keep].reset_index(drop=True)
+
+from sklearn.preprocessing import normalize
+
+def split_embedding_direction_norm(X, emb_cols):
+    """
+    X: DataFrame
+    emb_cols: list[str]
+    return:
+        X_wo_emb (DataFrame)
+        emb_feat (np.ndarray)  shape=(N, D+1)
+    """
+    X_emb = X[emb_cols].values
+
+    # --- 中心化（train / test で別 mean を使うのが重要） ---
+    mu = X_emb.mean(axis=0, keepdims=True)
+    Xc = X_emb - mu
+
+    # --- 方向 ---
+    X_dir = normalize(Xc)
+
+    # --- ノルム ---
+    X_norm = np.linalg.norm(Xc, axis=1, keepdims=True)
+
+    emb_feat = np.hstack([X_dir, X_norm])
+
+    X_wo_emb = X.drop(columns=emb_cols)
+
+    return X_wo_emb, emb_feat
 
 
 def save_and_print_roc(y_true, score, out_dir: Path, prefix: str):
@@ -432,8 +439,8 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
     if len(block_nums) < 3:
         raise ValueError("B4/B5 を使うには最低 3 block 必要")
 
-    train_num = block_nums[-3]   # B4
-    test_num  = block_nums[-2]   # B5
+    train_num = block_nums[-2]   # B4
+    test_num  = block_nums[-1]   # B5
 
     return {
         "train_csv": blocks[str(train_num)],
@@ -489,14 +496,15 @@ CURRENT_ALPHA: float | None = None
 
 
 # ============================================================
-# 1 seed 分の IF 実行
+# 1 seed 分の RF 実行
 # ============================================================
 
-def run_isoforest_for_seed(seed: int) -> dict:
+from sklearn.ensemble import RandomForestClassifier
+
+def run_random_forest_for_seed(seed: int) -> dict:
     """
-    1つの seed について IF を学習・評価し、
-    AUC などのメトリクスと保存先を dict で返す。
-    出力は OUT_DIR/seed_{seed}/ 以下にまとめる。
+    1 seed 分の RandomForest による embedding 評価
+    （教師あり・補助実験）
     """
     global df_train, df_test, wv_train, wv_test, mean_vec_train, mean_vec_test
     global CAT_COLS, NUM_COLS, OUT_DIR
@@ -507,19 +515,15 @@ def run_isoforest_for_seed(seed: int) -> dict:
 
     out_dir_seed = ensure_outdir(Path(OUT_DIR) / f"seed_{seed}")
 
-    # --- 特徴量とラベルを作成 ---
+    # --- 特徴量 ---
     need_cols = ["Label", "srcip"] + CAT_COLS + NUM_COLS
 
-    # ==========
-    # B4 → train
-    # ==========
+    # ========== train ==========
     work_train = df_train[need_cols].copy()
     X_train = work_train.drop(columns=["Label"])
     y_train = work_train["Label"].astype(int)
 
-    # ==========
-    # B5 → test
-    # ==========
+    # ========== test ==========
     work_test = df_test[need_cols].copy()
     X_test = work_test.drop(columns=["Label"])
     y_test = work_test["Label"].astype(int)
@@ -531,18 +535,15 @@ def run_isoforest_for_seed(seed: int) -> dict:
         random_state=seed,
     )
 
-
-    # ★ テストデータ側の Attack をランダム・オーバーサンプリング（任意）
     if USE_TEST_OVERSAMPLING:
         X_test, y_test = random_oversample_minority(
-            X_test,
-            y_test,
+            X_test, y_test,
             label_pos=ATTACK_LABEL,
             min_pos=MIN_ATTACK_IN_TEST,
             random_state=seed,
         )
 
-    # --- 埋め込み付与（train/test で別モデル） ---
+    # --- 生 embedding を付与 ---
     X_train, emb_cols = attach_srcip_embedding(
         X_train.copy(), wv_train, mean_vec_train, ip_col="srcip"
     )
@@ -550,194 +551,110 @@ def run_isoforest_for_seed(seed: int) -> dict:
         X_test.copy(), wv_test, mean_vec_test, ip_col="srcip"
     )
 
-    #ALL_NUM_COLS = NUM_COLS + emb_cols
     from sklearn.preprocessing import StandardScaler
 
-    # 前処理パイプライン（OneHot + 数値＋埋め込み）
-    cat_transformer = OneHotEncoder(handle_unknown="ignore", sparse_output=True)
-    num_transformer = "passthrough"
+    # --- 前処理 ---
     preprocess = ColumnTransformer(
         transformers=[
-        #("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CAT_COLS),
-        #("num", StandardScaler(), NUM_COLS),
-        ("emb", "passthrough", emb_cols),
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CAT_COLS),
+            ("num", StandardScaler(), NUM_COLS),
+            ("emb", "passthrough", emb_cols),   # ★ 生 embedding
         ],
         remainder="drop",
     )
 
-    # --- Benign のみで IF 学習 ---
-    mask_benign_train = (y_train == BENIGN_LABEL)
-    X_train_benign = X_train[mask_benign_train]
-
-    #breakpoint()
-
-    iso_clf = IsolationForest(
-        n_estimators=1000,
-        max_samples="auto",
-        contamination="auto",
+    rf = RandomForestClassifier(
+        n_estimators=500,
+        max_depth=None,
+        min_samples_leaf=1,
+        class_weight="balanced",
         random_state=seed,
         n_jobs=-1,
     )
 
-    pipe_iso = Pipeline(
+    pipe = Pipeline(
         [
             ("prep", preprocess),
-            ("clf", iso_clf),
+            ("clf", rf),
         ]
     )
 
-    pipe_iso.fit(X_train_benign)
+    # --- 学習 ---
+    pipe.fit(X_train, y_train)
 
-    # --- スコア & メトリクス ---
-    dec = pipe_iso.decision_function(X_test)  # 高いほど正常
-    anom_score = -dec  # 高いほど異常
-    """
-    # ===== 検証② permutation =====
-    base_auc, perm = permutation_importance_group(
-        pipe_iso,
-        X_test,
-        y_test,
-        {"embedding": emb_cols, "non_embedding": CAT_COLS + NUM_COLS},
-    )
-    with open(out_dir_seed / "permutation_importance_group.json", "w") as f:
-        json.dump({"base_auc": base_auc, "groups": perm}, f, indent=2)
-    """
-    
-    from sklearn.tree import plot_tree
-    #一つの木を可視化
-    estimator = iso_clf.estimators_[0]
-    plt.figure(figsize=(20,10))
-
-    feature_names = pipe_iso.named_steps['prep'].get_feature_names_out()
-    plot_tree(estimator, filled=True, rounded=True, feature_names=feature_names)
-    plt.savefig(out_dir_seed / "isoforest_tree_0.png")
-    plt.close()
+    # --- 推論 ---
+    proba = pipe.predict_proba(X_test)[:, 1]  # P(Attack)
 
     try:
-        roc_if = roc_auc_score(y_test, anom_score)
+        roc = roc_auc_score(y_test, proba)
     except ValueError:
-        roc_if = None
+        roc = None
 
     try:
-        ap_if = average_precision_score(y_test, anom_score)
+        ap = average_precision_score(y_test, proba)
     except ValueError:
-        ap_if = None
+        ap = None
 
-    thr = 0.0
-    y_pred_if = (anom_score > thr).astype(int)
-    cm_if = confusion_matrix(y_test, y_pred_if).tolist()
-
-    setting = f"IF_seed_{seed}"
-    if CURRENT_RUN_ID is not None:
-        setting = f"IF_run={CURRENT_RUN_ID}_mode={CURRENT_MODE}_alpha={CURRENT_ALPHA}_seed={seed}"
-
-    notes = f"seed={seed}, CAT={CAT_COLS}, NUM={NUM_COLS}, EMBED_DIM={len(emb_cols)}"
-    if CURRENT_RUN_ID is not None:
-        notes = (
-            f"run_id={CURRENT_RUN_ID}, mode={CURRENT_MODE}, alpha_anom={CURRENT_ALPHA}, "
-            + notes
-        )
-
-    rep_if = RunReport(
-        setting=setting,
-        n_train=int(mask_benign_train.sum()),
+    # --- 保存 ---
+    rep = RunReport(
+        setting=f"RF_seed_{seed}",
+        n_train=len(y_train),
         n_test=len(y_test),
-        roc_auc=roc_if,
-        ap=ap_if,
-        threshold_desc="decision_function<0 を異常（異常スコア>0）として判定",
-        confusion=cm_if,
-        notes=notes,
+        roc_auc=roc,
+        ap=ap,
+        threshold_desc="RandomForest P(Attack)",
+        confusion=None,
+        notes=f"RF with raw embedding dim={len(emb_cols)}",
     )
-    save_report_json(rep_if, out_dir_seed, "report_isoforest.json")
+    save_report_json(rep, out_dir_seed, "report_rf.json")
 
-    pred_if = pd.DataFrame(
+    pred_df = pd.DataFrame(
         {
             "y_true": y_test.values,
-            "anom_score": anom_score,
-            "y_pred": y_pred_if,
+            "p_attack": proba,
         }
     )
-    pred_if.to_csv(out_dir_seed / "pred_isoforest.csv", index=False)
+    pred_df.to_csv(out_dir_seed / "pred_rf.csv", index=False)
 
-    print(f"[seed={seed}] ROC-AUC:", roc_if, " AP:", ap_if)
-    print(f"[seed={seed}] Confusion matrix:\n", np.array(cm_if))
-
-    # ROC曲線＆ヒストグラム
-    prefix = f"isoforest_seed{seed}"
-    if CURRENT_RUN_ID is not None:
-        prefix = f"isoforest_{CURRENT_RUN_ID}_seed{seed}"
-
-    save_and_print_roc(y_test.values, anom_score, out_dir_seed, prefix=prefix)
-    save_score_count_hist(
+    save_and_print_roc(
         y_test.values,
-        anom_score,
+        proba,
         out_dir_seed,
-        prefix=prefix,
-        bins=60,
-        thr=thr,
+        prefix=f"rf_seed{seed}",
     )
 
     return {
         "seed": seed,
-        "n_train": int(mask_benign_train.sum()),
+        "n_train": len(y_train),
         "n_test": len(y_test),
-        "roc_auc": roc_if,
-        "ap": ap_if,
+        "roc_auc": roc,
+        "ap": ap,
     }
 
-
-def run_seeds_and_save_summary(seeds: List[int]) -> None:
+def run_rf_seeds_and_save_summary(seeds: List[int]) -> None:
     global OUT_DIR
 
     results = []
     for s in seeds:
-        print(f"\n===== run seed={s} =====")
-        res = run_isoforest_for_seed(s)
+        print(f"\n===== RF run seed={s} =====")
+        res = run_random_forest_for_seed(s)
         results.append(res)
 
-    results_df = pd.DataFrame(results)
-    results_csv = Path(OUT_DIR) / "isoforest_seed_results.csv"
-    results_df.to_csv(results_csv, index=False)
-    print("Per-seed results CSV:", results_csv)
+    df = pd.DataFrame(results)
+    df.to_csv(Path(OUT_DIR) / "rf_seed_results.csv", index=False)
 
     aucs = [r["roc_auc"] for r in results if r["roc_auc"] is not None]
-    if aucs:
-        auc_mean = float(np.mean(aucs))
-        auc_max = float(np.max(aucs))
-        auc_min = float(np.min(aucs))
-        auc_med = float(np.median(aucs))
-        auc_std = float(np.std(aucs))
-    else:
-        auc_mean = auc_max = auc_min = auc_med = auc_std = None
-
     summary = {
-        "seeds": list(seeds),
-        "n_runs": len(aucs),
-        "roc_auc_mean": auc_mean,
-        "roc_auc_max": auc_max,
-        "roc_auc_min": auc_min,
-        "roc_auc_median": auc_med,
-        "roc_auc_std": auc_std,
+        "roc_auc_mean": float(np.mean(aucs)) if aucs else None,
+        "roc_auc_std": float(np.std(aucs)) if aucs else None,
+        "roc_auc_max": float(np.max(aucs)) if aucs else None,
     }
 
-    summary_json = Path(OUT_DIR) / "isoforest_seed_summary.json"
-    with open(summary_json, "w") as f:
-        json.dump(summary, f, indent=2, ensure_ascii=False)
+    with open(Path(OUT_DIR) / "rf_seed_summary.json", "w") as f:
+        json.dump(summary, f, indent=2)
 
-    print("AUC summary JSON:", summary_json)
-    print(
-        "AUC stats:",
-        "mean=",
-        auc_mean,
-        "max=",
-        auc_max,
-        "min=",
-        auc_min,
-        "median=",
-        auc_med,
-        "std=",
-        auc_std,
-    )
+    print("[RF] summary:", summary)
+
 
 
 # ============================================================
@@ -788,7 +705,7 @@ def main_manual():
     print("CAT_COLS:", CAT_COLS)
     print("NUM_COLS:", NUM_COLS)
 
-    run_seeds_and_save_summary(list(SEED_RANGE))
+    run_rf_seeds_and_save_summary(list(SEED_RANGE))
 
 
 # ============================================================
@@ -857,7 +774,7 @@ def main_from_csv_incremental():
         print("CAT_COLS:", CAT_COLS)
         print("NUM_COLS:", NUM_COLS)
 
-        run_seeds_and_save_summary(list(SEED_RANGE))
+        run_rf_seeds_and_save_summary(list(SEED_RANGE))
 
 def main_from_csv_single():
     """
@@ -963,7 +880,7 @@ def main_from_csv_single():
         # =========================
         # IF 実行
         # =========================
-        run_seeds_and_save_summary(list(SEED_RANGE))
+        run_rf_seeds_and_save_summary(list(SEED_RANGE))
 
 
 

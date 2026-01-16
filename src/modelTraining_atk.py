@@ -51,7 +51,7 @@ ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["single"]  # 片方だけ試したいときはここを編集
 
 R_list = [None]  # ノルム制約の候補リスト
 #R_list = [None]
