@@ -6,13 +6,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
 
 # ============================================================
 # 設定（ここだけ編集すればOK）
 # ============================================================
 
-RUN_ID = "2026-01-15T22-25-02_incremental_ebgaj25y"
-BLOCK_ID = 5
+RUN_ID = "2026-01-17T21-46-09_incremental_wegd3i4j"
+BLOCK_ID = 7
 DATASET = "UNSW-NB15"
 
 ARTIFACTS_ROOT = Path("/workspace/experiments")
@@ -23,7 +25,17 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ノルム制約が強いので拡大必須
-PCA_SCALE = 500
+PCA_SCALE = 1
+
+# ============================================================
+# プロット前に除外したい IP（語彙から落とす）
+# ============================================================
+
+EXCLUDE_IPS = {
+    "10.40.182.6",
+    "149.171.126.12",
+}
+
 
 # ============================================================
 # util
@@ -70,6 +82,36 @@ def analyze():
     X, token2id = load_embeddings(model_path)
     V, D = X.shape
     print(f"[INFO] embeddings loaded: vocab={V}, dim={D}")
+
+
+    # ========================================================
+    # ★ 指定 IP を語彙・埋め込みから除外
+    # ========================================================
+
+    exclude_ids = [
+        token2id[ip] for ip in EXCLUDE_IPS if ip in token2id
+    ]
+
+    if exclude_ids:
+        mask = np.ones(V, dtype=bool)
+        mask[exclude_ids] = False
+
+        X = X[mask]
+
+        # 新しい token2id / id2token を再構築
+        old_id2token = {v: k for k, v in token2id.items()}
+        kept_old_ids = np.nonzero(mask)[0]
+
+        token2id = {
+            old_id2token[old_i]: new_i
+            for new_i, old_i in enumerate(kept_old_ids)
+        }
+
+        V = X.shape[0]
+        print(f"[INFO] excluded {len(exclude_ids)} IPs")
+        print(f"[INFO] vocab after exclusion: {V}")
+    else:
+        print("[INFO] no IPs excluded")
 
     # ========================================================
     # 1. ノルム統計（制約確認用）
@@ -171,30 +213,28 @@ def analyze():
     plt.close()
     print("[INFO] radius vs angle plot with labels saved:", out)
 
-
-
     # ========================================================
-    # 3. PCA（中心化＋拡大）
+    # 3A. PCA（大域構造）
     # ========================================================
 
     pca = PCA(n_components=2, random_state=0)
-    X2 = pca.fit_transform(X)
+    X_pca = pca.fit_transform(X)
 
-    X2 -= X2.mean(axis=0)
-    X2 *= PCA_SCALE
+    # 中心化（見やすさ・比較用）
+    X_pca -= X_pca.mean(axis=0)
+    X_pca *= PCA_SCALE
 
-    id2token = {v: k for k, v in token2id.items()}  # index -> IPアドレス
+    id2token = {v: k for k, v in token2id.items()}
 
-    fig, ax = plt.subplots(figsize=(10, 10))  # サイズ大きめが良い
-    ax.scatter(X2[:, 0], X2[:, 1], s=30)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.scatter(X_pca[:, 0], X_pca[:, 1], s=30)
 
-    # 各点にIPアドレスを表示
-    for i in range(X2.shape[0]):
+    for i in range(X_pca.shape[0]):
         ip = id2token.get(i, f"id={i}")
-        ax.text(X2[i, 0], X2[i, 1], ip, fontsize=8, alpha=0.8)
+        ax.text(X_pca[i, 0], X_pca[i, 1], ip, fontsize=8, alpha=0.8)
 
     ax.set_title(
-        f"PCA (centered & scaled ×{PCA_SCALE})\n"
+        f"PCA (2D, centered ×{PCA_SCALE})\n"
         f"run={RUN_ID}, block={BLOCK_ID}"
     )
     ax.set_xlabel("PC1")
@@ -205,6 +245,45 @@ def analyze():
     plt.savefig(out, dpi=150)
     plt.close()
     print("[INFO] PCA plot with labels saved:", out)
+
+
+    # ========================================================
+    # 3B. t-SNE（局所構造）
+    # ========================================================
+
+    tsne = TSNE(
+        n_components=2,
+        perplexity=3,
+        learning_rate="auto",
+        init="pca",          # ★ PCA 初期化（重要）
+        random_state=0,
+        n_iter=1000,
+    )
+
+    X_tsne = tsne.fit_transform(X)
+
+    # t-SNE は絶対位置に意味がないので中心化（任意だが推奨）
+    X_tsne -= X_tsne.mean(axis=0)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.scatter(X_tsne[:, 0], X_tsne[:, 1], s=30)
+
+    for i in range(X_tsne.shape[0]):
+        ip = id2token.get(i, f"id={i}")
+        ax.text(X_tsne[i, 0], X_tsne[i, 1], ip, fontsize=8, alpha=0.8)
+
+    ax.set_title(
+        f"t-SNE (2D, PCA init)\n"
+        f"run={RUN_ID}, block={BLOCK_ID}"
+    )
+    ax.set_xlabel("dim-1")
+    ax.set_ylabel("dim-2")
+
+    out = OUT_DIR / f"tsne_block_{BLOCK_ID:03d}_with_labels.png"
+    plt.tight_layout()
+    plt.savefig(out, dpi=150)
+    plt.close()
+    print("[INFO] t-SNE plot with labels saved:", out)
 
 
 # ============================================================

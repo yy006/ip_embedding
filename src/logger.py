@@ -42,6 +42,7 @@ class ExperimentLogger:
         params: Dict[str, Any],       # 例: params[0]
         run_id: Optional[str] = None, # 指定なければ自動生成
         schema_version: str = "1.0",
+        note: Optional[str] = None,
     ):
         started_at = _now_iso()
         rid = run_id or f"{started_at}_{mode}_{_rand8()}"
@@ -72,6 +73,7 @@ class ExperimentLogger:
             "started_at": started_at,
             "blocks": blocks_norm,
             "params": params,
+            "note": note,
             "results": {
                 "overall": {},
                 "blocks": {}  # "001": {...}, "002": {...}

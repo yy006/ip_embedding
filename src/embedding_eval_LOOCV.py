@@ -44,16 +44,19 @@ ARTIFACTS_ROOT = Path("/workspace")
 # --- CSVモード / 手書きモード ---
 USE_RUNS_CSV = True
 
+# --- 実験モード ---
+MODE_SINGLE = False     # True: single, False: incremental
+
+#OUT_DIR_NAME = "eval/LOOCV_50dupfalse_sin_B13"
+OUT_DIR_NAME = "eval/LOOCV_Adam引継ぎなし_lr0025_攻撃均さずbenign0_inc_B7"
+
 # incremental の run_id 一覧（incremental時のみ参照）
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_xuea63i4.csv"
+#RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_xuea63i4.csv"
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_e2j8mgue.csv"
 
 # single の run_id 一覧（single時のみ参照）
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_jwiyjc78.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_pje4pcpq.csv"
 
-OUT_DIR_NAME = "eval/LOOCV_12dupfalse_sin"
-
-# --- 実験モード ---
-MODE_SINGLE = True     # True: single, False: incremental
 DATASET = "UNSW-NB15"
 
 # --- 手書きモード（USE_RUNS_CSV=False のときだけ使用） ---
@@ -111,8 +114,8 @@ def resolve_paths_from_config_incremental(dataset: str, run_id: str) -> dict:
     if len(block_nums) < 3:
         raise ValueError("incremental で B4/B5 を使うには最低 3 block 必要")
 
-    train_num = block_nums[-3]
-    test_num = block_nums[-2]
+    train_num = block_nums[-1]
+    test_num = block_nums[-1]
 
     return {
         "train_csv": blocks[str(train_num)],

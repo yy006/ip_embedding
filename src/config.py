@@ -12,7 +12,10 @@ DATASET = 'UNSW-NB15'
 
 ATTACK = "Exploits"  # "Worms" | "DoS" | "Analysis" | "Backdoor" | "Exploits" | "Fuzzers" | "Generic" | "Reconnaissance" | "Shellcode" | "Worms"
 PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_with_class_name_by2h"
-
+#PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
+#PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_mean_atk"
+#PREPROCESS = "UNSW-NB15_2_by2h/benign100_atk_mean"
+#PREPROCESS = "UNSW-NB15_2_by2h/remain_benign_atk_mean"
 DATA = ROOT/'datasets'/DATASET
 DATA_PATH = DATA / PREPROCESS / ATTACK
 
@@ -95,7 +98,7 @@ BLOCKS: dict[int, Path] = {
 SERVICES = f'{DATA}/services/services.json'
 
 TrainingMode = Literal["single", "incremental"]
-TRAINING_MODE: TrainingMode = 'single'  # "single" or "incremental"
+#TRAINING_MODE: TrainingMode = 'single'  # "single" or "incremental"
 
 ARTIFACTS_ROOT = Path(ROOT) / "experiments"
 

@@ -157,6 +157,7 @@ class TorchWord2Vec:
         self.token2id = {}
         self.id2token = {}
         self.model = None
+        self.optimizer = None
         '''
         self.device = device or torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
@@ -287,7 +288,6 @@ class TorchWord2Vec:
 
         # 4. モデル & optimizer 用意
         self.model = SkipGramNegSampling(vocab_size, self.embedding_size).to(self.device)
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
         # 5. 学習ループ
         self.model.train()
@@ -376,6 +376,10 @@ class TorchWord2Vec:
                 vocab_size, self.embedding_size
             ).to(self.device)
 
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.lr
+            )
+
         else:
             # --- incremental 学習 ---
             if self.model is None:
@@ -414,8 +418,7 @@ class TorchWord2Vec:
         # 3. モデル & optimizer 準備
         #    - SkipGramNegSampling: center / context / negative の3種類の埋め込みから
         #      SGNS の損失を計算するモジュール
-        #    - optimizer は埋め込みに適した SparseAdam を想定
-        self.model = SkipGramNegSampling(vocab_size, self.embedding_size).to(self.device)
+        #    - optimizer は埋め込みに適した Sparse を想定
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
         # 4. 学習ループ
@@ -567,6 +570,7 @@ class TorchWord2Vec:
         path = path or f"{self.mname}_torchw2v.pt"
         state = {
             "model_state": self.model.state_dict(),
+            #"optimizer_state": self.optimizer.state_dict(),
             "token2id": self.token2id,
             "id2token": self.id2token,
             "config": {
@@ -600,6 +604,10 @@ class TorchWord2Vec:
         vocab_size = len(self.token2id)
         self.model = SkipGramNegSampling(vocab_size, self.embedding_size).to(self.device)
         self.model.load_state_dict(state["model_state"])
+
+        #self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        #self.optimizer.load_state_dict(state["optimizer_state"])
+
         # ★ incremental 用：train モードにする
         self.model.train()
 
@@ -624,16 +632,23 @@ class TorchWord2Vec:
 
         # --- 3. 新 token があれば追加 ---
         if new_tokens:
+            # ★ 既存 embedding の平均
+            mean_in  = in_weight.mean(dim=0)
+            mean_out = out_weight.mean(dim=0)
+
             for tok in sorted(new_tokens):
                 new_id = len(self.token2id)
-
                 self.token2id[tok] = new_id
                 self.id2token[new_id] = tok
 
-                init_vec = torch.randn(dim, device=device) * 0.01
+                
+                # ★ 平均 + 微小ノイズ（重要）
+                eps = 0.01
+                init_in  = mean_in  + eps * torch.randn(dim, device=device)
+                init_out = mean_out + eps * torch.randn(dim, device=device)
 
-                in_weight = torch.cat([in_weight, init_vec.unsqueeze(0)], dim=0)
-                out_weight = torch.cat([out_weight, init_vec.unsqueeze(0)], dim=0)
+                in_weight = torch.cat([in_weight, init_in.unsqueeze(0)], dim=0)
+                out_weight = torch.cat([out_weight, init_out.unsqueeze(0)], dim=0)
 
             self.model.in_embed = torch.nn.Embedding.from_pretrained(
                 in_weight, freeze=False

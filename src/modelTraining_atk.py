@@ -15,8 +15,6 @@ import torch
 torch.set_num_threads(2)
 torch.set_num_interop_threads(1)
 
-
-
 SAVE = True
 
 # === ベースのパラメータ（元の params[0] と同じ） ===
@@ -35,7 +33,7 @@ BASE_PARAMS = {
     },
 }
 
-print("CONFIG TRAINING_MODE:", TRAINING_MODE)
+#print("CONFIG TRAINING_MODE:", TRAINING_MODE)
 #print("CONFIG ATTACK (from config.py):", ATTACK)
 
 artifact_root = ARTIFACTS_ROOT
@@ -51,25 +49,24 @@ ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["single"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
 
 R_list = [None]  # ノルム制約の候補リスト
 #R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
 
+Note = "Adamで実験 lr0.025 引継ぎなし 攻撃均さない benign0 inc B7"
+
 # True にすると攻撃ラベルもスイープ
 DO_ATTACK_SWEEP = True
 
+
 ATTACK_LIST = [
-    "Generic",
+    "Fuzzers",
+    "Reconnaissance",
     "DoS",
     "Exploits",
-    "Fuzzers",
-    "Analysis",
-    "Backdoor",
-    "Worms",
-    "Reconnaissance",
     "Shellcode",
 ]
 
@@ -91,15 +88,40 @@ def build_blocks_for_attack(attack: str) -> dict[int, Path]:
     """
     data_root = ROOT / "datasets" / DATASET
     data_path = data_root / PREPROCESS / attack
-
+    """
+    blocks: dict[int, Path] = {
+        1: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
+        2: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
+        3: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
+        4: data_path / f"2015012218_2015012220_by2h_{attack}.csv",          
+        5: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        6: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        7: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        8: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        9: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
+        10: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
+        11: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
+        12: data_path / f"2015012222_2015012300_by2h_{attack}.csv",        
+        13: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        14: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        15: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        16: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        17: data_path / f"2015021800_2015021802_by2h_{attack}.csv",
+        #6: data_path / f"2015021802_2015021804_by2h_{attack}.csv",
+    }
+    """
+    
     blocks: dict[int, Path] = {
         1: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
         2: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
-        3: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
-        4: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
-        5: data_path / f"2015021800_2015021802_by2h_{attack}.csv",
-        6: data_path / f"2015021802_2015021804_by2h_{attack}.csv",
+        3: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        4: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        5: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
+        6: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        7: data_path / f"2015021800_2015021802_by2h_{attack}.csv",
+        #6: data_path / f"2015021802_2015021804_by2h_{attack}.csv",
     }
+
     return blocks
 
 
@@ -144,6 +166,7 @@ def run_training(
     mapping_path: Path | None = None,
     radius: float | None = None,
     normal_pull_lambda: float | None = None,
+    note: str | None = None,
 
 ):
     """
@@ -164,6 +187,7 @@ def run_training(
         mode=mode,
         blocks=blocks,
         params=params,
+        note=note,
     )
 
     alpha_info = f"[alpha={alpha}] " if alpha is not None else ""
@@ -381,4 +405,5 @@ if __name__ == "__main__":
                                 mapping_path=ALPHA_MAPPING_PATH if DO_ALPHA_SWEEP else None,
                                 radius=R,
                                 normal_pull_lambda=normal_pull_lambda,
+                                note=Note,
                             )
