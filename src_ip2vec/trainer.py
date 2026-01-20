@@ -1,119 +1,182 @@
-import torch as th
-from torch.autograd import Variable as V
-from torch import nn,optim
-from tqdm import tqdm
-import numpy as np
-import random
-import model
-import preprocess
-# from model import Skipgram
+from __future__ import annotations
 
-device = th.device('cuda:0' if th.cuda.is_available() else 'cpu')
-#device = th.device('cpu')
+from torch.utils.data import DataLoader
+import pandas as pd
+import torch
 
-class Trainer:
-    def __init__(self,w2v,v2w,freq,emb_dim,lamb):
-        self.v2w = v2w
-        self.w2v = w2v
-        self.unigram_table = self.noise(w2v,freq)
-        self.vocab_size = len(w2v)
-        self.model = model.Skipgram(self.vocab_size,emb_dim, lamb).to(device)
-       # self.model = model.Skipgram(self.vocab_size,emb_dim)
-        self.optim = optim.Adam(self.model.parameters())
-        self.best_loss = float('inf')  # 最初のbest_lossを無限大に設定
-        self.patience = 0
-        self.lamb = lamb
+from .model import SkipGramNegSampling
+from .dataset import IP2VecPairDataset, ip2vec_collate_fn
+from .vocab import build_vocab_from_df_ip2vec
 
-    def create_batches(self, data, batch_size):
-        # 元のデータを1次元のリストに変換
-        flat_data = [item for sublist in data for item in sublist]
-    
-        # 指定した行数でバッチを作成
-        batches = [flat_data[i:i + batch_size] for i in range(0, len(flat_data), batch_size)]
-    
-        return batches
 
-    def noise(self,w2v, freq):
-        unigram_table = []
-        total_word = sum([c for c in freq.values()])
-        for w,v in w2v.items():
-            unigram_table.extend([v]*int(((freq[w]/total_word)**0.75)/0.001))
-        return unigram_table
+class TorchIP2Vec:
+    def __init__(self, e=50, epochs=2, neg_k=5, lr=0.025, device=None, norm_radius=None):
+        self.embedding_size = e
+        self.epochs = epochs
+        self.neg_k = neg_k
+        self.lr = lr
+        self.norm_radius = norm_radius
 
-    def negative_sampling(self,batch_size,neg_num,batch_target):
-        neg = np.zeros((neg_num))
-       # print("neg:", neg)
-       # for i in range(batch_size):
-        for i in range(len(batch_target)):
-            sample = random.sample(self.unigram_table, neg_num)
-           # print("sample:", sample)
-            while batch_target[i] in sample:
-                sample = random.sample(self.unigram_table, neg_num)
-            neg = np.vstack([neg,sample])
-        return neg[1:batch_size+1]
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def fit(self,data,max_epoch,batch_size,neg_num, unique_ips_index, patience_limit=4, save_every=1, save_path='model_checkpoint'):
-        # データを(batch_size)行2列のバッチに変換
-        data = self.create_batches(data, batch_size)
-        
-        run_losses = []
-        for epoch in range(max_epoch):
-            run_loss = 0
-            # エポックごとに h_0 を再計算
-            #h_0 = 1 / self.vocab_size * sum([self.model.u_embedding(th.tensor(i, dtype=th.long).to(device)).detach() for i in range(self.vocab_size)])
-            #if self.is_pull_center:
-            #  h_0 = 1 / len(unique_ips_index) * sum([self.model.u_embedding(th.tensor(i, dtype=th.long).to(device)).detach() for i in unique_ips_index])
+        self.token2id: dict[str, int] = {}
+        self.id2token: dict[int, str] = {}
+        self.unigram_table: torch.Tensor | None = None
 
-            for batch in tqdm(data):
-                batch = np.array(batch)  # batchをlistからnumpyのndarrayに変換
-                context,target = batch[:,1],batch[:,0]
+        self.model: SkipGramNegSampling | None = None
+        self.optimizer: torch.optim.Optimizer | None = None
 
-                self.optim.zero_grad()
-                batch_neg = self.negative_sampling(batch_size,neg_num,target)
-                context = V(th.LongTensor(context)).to(device)
-                target = V(th.LongTensor(target)).to(device)
-                batch_neg = V(th.LongTensor(batch_neg.astype(int))).to(device)
+    # -----------------------------
+    # gensim 互換っぽい wv ラッパ
+    # -----------------------------
+    class _WVWrapper:
+        def __init__(self, parent: "TorchIP2Vec"):
+            self._p = parent
 
-                loss = self.model(target, context, batch_neg)
-                loss.backward()
-                self.optim.step()
-                run_loss += loss.cpu().item()
-            
-            # 指定された間隔でモデルを保存
-            if (epoch + 1) % save_every == 0:
-                self.save_model(epoch, save_path)
-            run_losses.append(run_loss/len(data))
-            print("epoch:", epoch,"run_loss:", run_loss)
-            if run_loss < self.best_loss:
-                self.best_loss = run_loss
-                self.patience = 0
+        @property
+        def index_to_key(self):
+            # id順
+            return [self._p.id2token[i] for i in range(len(self._p.id2token))]
+
+        @property
+        def vector_size(self):
+            return self._p.embedding_size
+
+        def __getitem__(self, key):
+            p = self._p
+            if p.model is None:
+                raise RuntimeError("model is None")
+
+            if isinstance(key, str):
+                idx = p.token2id.get(key)
+                if idx is None:
+                    raise KeyError(key)
             else:
-                self.patience += 1
-                if self.patience >= patience_limit:
-                    print(f"Early stopping triggered at epoch {epoch}")
-                    break  # 早期終了
+                idx = int(key)
 
-        return run_losses
-    def save_model(self, epoch, save_path):
-        model_state = self.model.state_dict()
-        save_dict = {
-            'model_state': model_state,
-            'w2v': self.w2v,
-            'v2w': self.v2w,
-            'epoch': epoch
-            #'h_0': h_0
+            with torch.no_grad():
+                return p.model.in_embed.weight[idx].detach().cpu().numpy()
+
+    def _attach_wv(self):
+        """model.wv を付ける（評価コード互換用）"""
+        if self.model is None:
+            return
+        self.model.wv = TorchIP2Vec._WVWrapper(self)
+
+    # -----------------------------
+    # 学習本体
+    # -----------------------------
+    def train_ip2vec(
+        self,
+        df: pd.DataFrame,
+        *,
+        batch_size=1024,
+        min_count=0,
+        incremental=False,
+        src_col="srcip",
+        dst_col="dstip",
+        dport_col="dsport",
+        proto_col="proto",
+        use_prefix=True,
+        num_workers=0,
+    ):
+        # 1) vocab / model
+        if not incremental:
+            self.token2id, self.id2token, freqs = build_vocab_from_df_ip2vec(
+                df,
+                src_col=src_col, dst_col=dst_col, dport_col=dport_col, proto_col=proto_col,
+                min_count=min_count, use_prefix=use_prefix
+            )
+            vocab_size = len(self.token2id)
+            self.unigram_table = torch.tensor(freqs, dtype=torch.float32, device=self.device)
+
+            self.model = SkipGramNegSampling(vocab_size, self.embedding_size).to(self.device)
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        else:
+            if self.model is None or self.unigram_table is None or not self.token2id or self.optimizer is None:
+                raise RuntimeError("incremental=True なら、model/token2id/unigram_table/optimizer が事前に必要です。")
+
+        # 2) dataset / dataloader
+        dataset = IP2VecPairDataset(
+            df,
+            self.token2id,
+            src_col=src_col, dst_col=dst_col, dport_col=dport_col, proto_col=proto_col,
+            use_prefix=use_prefix,
+        )
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            collate_fn=ip2vec_collate_fn,
+            drop_last=False,
+        )
+
+        # 3) train
+        assert self.model is not None
+        assert self.optimizer is not None
+        assert self.unigram_table is not None
+
+        self.model.train()
+        for epoch in range(self.epochs):
+            total_loss = 0.0
+            total_pairs = 0
+
+            for center_ids, pos_ids in dataloader:
+                if center_ids.numel() == 0:
+                    continue
+
+                center_ids = center_ids.to(self.device)  # (B_pairs,)
+                pos_ids    = pos_ids.to(self.device)     # (B_pairs,)
+                B = center_ids.size(0)
+
+                neg_ids = torch.multinomial(
+                    self.unigram_table, self.neg_k * B, replacement=True
+                ).view(B, self.neg_k).to(self.device)  # ★ deviceに載せる
+
+                loss_vec = self.model(center_ids, pos_ids, neg_ids)
+                loss = loss_vec.mean()
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                # （任意）ノルム制約：必要ならここで射影
+                if self.norm_radius is not None:
+                    with torch.no_grad():
+                        W = self.model.in_embed.weight
+                        norms = W.norm(dim=1, keepdim=True).clamp_min(1e-12)
+                        factor = torch.clamp(self.norm_radius / norms, max=1.0)
+                        W.mul_(factor)
+
+                total_loss += loss.item() * B
+                total_pairs += B
+
+            print(f"[epoch {epoch+1}/{self.epochs}] loss={total_loss/max(total_pairs,1):.4f} pairs={total_pairs}")
+
+        self._attach_wv()
+
+    # -----------------------------
+    # save / load
+    # -----------------------------
+    def state_dict(self):
+        if self.model is None:
+            raise RuntimeError("model is None")
+        return {
+            "model_state": self.model.state_dict(),
+            "token2id": self.token2id,
+            "id2token": self.id2token,
+            "embedding_size": self.embedding_size,
         }
-        th.save(save_dict, f'{save_path}_epoch_{epoch}.pth')
-        print(f'Model saved for epoch {epoch}')
 
-    def most_similar(self,word,top):
-        W = self.model.state_dict()["u_embedding.weight"]
-        idx = w2v[word]
-        similar_score = {}
-        for i,vec in enumerate(W):
-            if i != idx:
-                d = vec.dot(W[idx])
-                similar_score[self.v2w[i]] = d
-        similar_score = sorted(similar_score.items(), key=lambda x: -x[1])[:top]
-        for k,v in similar_score:
-            print(k,":",round(v.item(),2))
+    def load_state_dict(self, ckpt: dict):
+        self.token2id = ckpt["token2id"]
+        self.id2token = ckpt["id2token"]
+        self.embedding_size = ckpt.get("embedding_size", self.embedding_size)
+
+        self.model = SkipGramNegSampling(len(self.token2id), self.embedding_size).to(self.device)
+        self.model.load_state_dict(ckpt["model_state"])
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+
+        # unigram_table は ckpt には入れてないので、incrementalするなら外で再構築してセットする
+        self._attach_wv()

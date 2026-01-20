@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime, timedelta
 from glob import glob
-from config import *
+from .config import *
 from typing import Tuple, Dict, Any
 
 ###############################################################################
@@ -15,16 +15,12 @@ SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
     "UNSW-NB15": {
         #"usecols": ['Timestamp', 'Src IP Addr', 'Src Pt', 'Dst IP Addr', 'Dst Pt', 'Proto'],
         "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto', 'Label'],
-        "rename": {'Timestamp': 'ts', 'srcip': 'ip', 'dsport': 'port', 'proto': 'proto'},
         "sep": ',',
-        "ip_col": ['srcip'],
     }
     ,
     "CIC-IDS2017": {
         "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto'],
-        "rename": {'Timestamp': 'ts', 'srcip': 'ip', 'dsport': 'port', 'proto': 'proto'},
         "sep": ',',
-        "ip_col": ['srcip'],
     }
 }
 
@@ -52,7 +48,6 @@ def get_data(path: Path) -> pd.DataFrame:
     #print(pd.read_csv(path, nrows=5).columns)
     f_df = pd.read_csv(path,
                        sep=schema["sep"],
-                       usecols=schema["usecols"],
                        skipinitialspace=True, 
                        )
 
@@ -64,17 +59,15 @@ def get_data(path: Path) -> pd.DataFrame:
         elif x == 1: to_replace[x] = 'icmp'
         else: to_replace[x] = 'oth'
     f_df.proto = f_df.proto.replace(to_replace)
-    # Merge port and protocol as 'port/protocol'
-    f_df['pp'] = f_df.port.astype(str)+"/"+f_df.proto
     # Convert timestamps
         # ここを置き換え
-    s = f_df["ts"]
+    s = f_df["Timestamp"]
     if np.issubdtype(s.dtype, np.number):
         # ts が 1496825940 のような数値（UNIX秒）
-        f_df["ts"] = pd.to_datetime(s, unit="s")
+        f_df["Timestamp"] = pd.to_datetime(s, unit="s")
     else:
         # ts が '6/7/2017 8:59' のような文字列
-        f_df["ts"] = pd.to_datetime(s, infer_datetime_format=True, errors="raise")
+        f_df["Timestamp"] = pd.to_datetime(s, infer_datetime_format=True, errors="raise")
     
     return f_df
 
@@ -128,7 +121,7 @@ def load_filter_from_chunk(blocks, block_number):
     return set(counts[counts>=10].index)
 
 def load_filter_from_all(raw_data, min_count=100):
-    counts = raw_data.value_counts('ip')
+    counts = raw_data.value_counts('srcip')
     return set(counts[counts >= min_count].index)
 
 
@@ -160,9 +153,9 @@ def filter_data(raw_data, blocks, block_number, mode):
         #filt = load_filter_from_chunk(blocks, block_number)
         filt = load_filter_from_all(raw_data, min_count=30)
     # Filter IPS
-    filtered = raw_data[raw_data.ip.isin(set(filt))]
+    filtered = raw_data[raw_data.srcip.isin(set(filt))]
     # Datetime index (TODO: datetime index処理が必要かの考慮)
-    filtered.index = pd.DatetimeIndex(filtered.ts)
+    filtered.index = pd.DatetimeIndex(filtered.Timestamp)
     filtered = filtered.sort_index()
         
     return filtered
