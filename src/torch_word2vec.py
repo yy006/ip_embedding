@@ -479,6 +479,8 @@ class TorchWord2Vec:
         # 5. gensim 互換インタフェース (model.wv) をアタッチ
         self._attach_wv()
 
+        # 
+
         # 6. モデル保存（必要な場合のみ）
         if save:
             self.save_model()
@@ -633,22 +635,18 @@ class TorchWord2Vec:
         # --- 3. 新 token があれば追加 ---
         if new_tokens:
             # ★ 既存 embedding の平均
-            mean_in  = in_weight.mean(dim=0)
-            mean_out = out_weight.mean(dim=0)
+            #mean_in  = in_weight.mean(dim=0)
+            #mean_out = out_weight.mean(dim=0)
 
             for tok in sorted(new_tokens):
                 new_id = len(self.token2id)
                 self.token2id[tok] = new_id
                 self.id2token[new_id] = tok
 
-                
-                # ★ 平均 + 微小ノイズ（重要）
-                eps = 0.01
-                init_in  = mean_in  + eps * torch.randn(dim, device=device)
-                init_out = mean_out + eps * torch.randn(dim, device=device)
+                init_vec = torch.randn(dim, device=device) * 0.01
 
-                in_weight = torch.cat([in_weight, init_in.unsqueeze(0)], dim=0)
-                out_weight = torch.cat([out_weight, init_out.unsqueeze(0)], dim=0)
+                in_weight = torch.cat([in_weight, init_vec.unsqueeze(0)], dim=0)
+                out_weight = torch.cat([out_weight, init_vec.unsqueeze(0)], dim=0)
 
             self.model.in_embed = torch.nn.Embedding.from_pretrained(
                 in_weight, freeze=False

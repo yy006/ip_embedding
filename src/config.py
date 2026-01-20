@@ -8,15 +8,19 @@ from typing import Literal
 #breakpoint()
 ROOT = Path(__file__).resolve().parents[1]
 print("ROOT:", ROOT)
-DATASET = 'UNSW-NB15'
+#DATASET = 'UNSW-NB15'
+DATASET = 'CIC-IDS2017'
 
 ATTACK = "Exploits"  # "Worms" | "DoS" | "Analysis" | "Backdoor" | "Exploits" | "Fuzzers" | "Generic" | "Reconnaissance" | "Shellcode" | "Worms"
-PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_with_class_name_by2h"
+#PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_with_class_name_by2h"
 #PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_with_class_name_by2h"
 #PREPROCESS = "UNSW-NB15_2_by2h/UNSW-NB15_2_ipmap59to175_drop175benign_b56all_mean_atk"
 #PREPROCESS = "UNSW-NB15_2_by2h/benign100_atk_mean"
 #PREPROCESS = "UNSW-NB15_2_by2h/remain_benign_atk_mean"
+PREPROCESS = "Bot_time"
 DATA = ROOT/'datasets'/DATASET
+
+"""
 DATA_PATH = DATA / PREPROCESS / ATTACK
 
 # ブロック番号 → ファイルパス（Path）
@@ -28,7 +32,7 @@ BLOCKS: dict[int, Path] = {
     5: DATA_PATH / f"2015021800_2015021802_by2h_{ATTACK}.csv",
     6: DATA_PATH / f"2015021802_2015021804_by2h_{ATTACK}.csv",
 }
-
+"""
 
 '''
 DATA = ROOT/'datasets'/DATASET

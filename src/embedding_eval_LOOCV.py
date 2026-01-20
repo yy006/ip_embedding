@@ -47,15 +47,15 @@ USE_RUNS_CSV = True
 # --- 実験モード ---
 MODE_SINGLE = False     # True: single, False: incremental
 
-#OUT_DIR_NAME = "eval/LOOCV_50dupfalse_sin_B13"
-OUT_DIR_NAME = "eval/LOOCV_Adam引継ぎなし_lr0025_攻撃均さずbenign0_inc_B7"
+OUT_DIR_NAME = "eval/LOOCV_50dupfalse_inc_B13"
+#OUT_DIR_NAME = "eval/LOOCV_データ数少ないIP除く 0.8 inc B5"
 
 # incremental の run_id 一覧（incremental時のみ参照）
 #RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_xuea63i4.csv"
-RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_e2j8mgue.csv"
+RUNS_CSV_PATH = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_mptnpe6e.csv"
 
 # single の run_id 一覧（single時のみ参照）
-SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_pje4pcpq.csv"
+SINGLE_RUNS_CSV_B = ARTIFACTS_ROOT / "experiments/alpha_sweep_mapping_h2s6qg11.csv"
 
 DATASET = "UNSW-NB15"
 

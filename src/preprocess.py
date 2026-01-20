@@ -19,6 +19,13 @@ SCHEMA_REGISTRY: Dict[str, Dict[str, Any]] = {
         "sep": ',',
         "ip_col": ['srcip'],
     }
+    ,
+    "CIC-IDS2017": {
+        "usecols": ['Timestamp', 'srcip', 'sport', 'dstip', 'dsport', 'proto'],
+        "rename": {'Timestamp': 'ts', 'srcip': 'ip', 'dsport': 'port', 'proto': 'proto'},
+        "sep": ',',
+        "ip_col": ['srcip'],
+    }
 }
 
 def get_schema(dataset: str) -> Dict[str, Any]:
@@ -120,7 +127,7 @@ def load_filter_from_chunk(blocks, block_number):
 
     return set(counts[counts>=10].index)
 
-def load_filter_from_all(raw_data, min_count=10):
+def load_filter_from_all(raw_data, min_count=100):
     counts = raw_data.value_counts('ip')
     return set(counts[counts >= min_count].index)
 
@@ -147,11 +154,11 @@ def load_raw_data(blocks, block_number, mode):
 
 def filter_data(raw_data, blocks, block_number, mode):
     if mode == "single":
-        filt = load_filter_from_all(raw_data, min_count=10)
+        filt = load_filter_from_all(raw_data, min_count=30)
     elif mode == "incremental":    
         #10回以上出現するIPアドレスを抽出
         #filt = load_filter_from_chunk(blocks, block_number)
-        filt = load_filter_from_all(raw_data, min_count=10)
+        filt = load_filter_from_all(raw_data, min_count=30)
     # Filter IPS
     filtered = raw_data[raw_data.ip.isin(set(filt))]
     # Datetime index (TODO: datetime index処理が必要かの考慮)

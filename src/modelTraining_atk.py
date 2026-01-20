@@ -49,17 +49,18 @@ ALPHAS = [0]
 
 # True にすると single / incremental 両方回す
 DO_MODE_SWEEP = True
-RUN_MODES = ["incremental"]  # 片方だけ試したいときはここを編集
+RUN_MODES = ["incremental","single"]  # 片方だけ試したいときはここを編集
 
 R_list = [None]  # ノルム制約の候補リスト
 #R_list = [None]
 
 normal_pull_lambda_list = [0]  # 正常点引き寄せ項のλ候補リスト
 
-Note = "Adamで実験 lr0.025 引継ぎなし 攻撃均さない benign0 inc B7"
+#Note = "Adamで実験 lr0.025 引継ぎなし 攻撃均さない benign0 データ数少ないIP除く 0.5 球体に分布 inc B5"
+Note = "Bot_time 12→3"
 
 # True にすると攻撃ラベルもスイープ
-DO_ATTACK_SWEEP = True
+DO_ATTACK_SWEEP = False
 
 
 ATTACK_LIST = [
@@ -87,7 +88,15 @@ def build_blocks_for_attack(attack: str) -> dict[int, Path]:
     指定された attack 用の BLOCKS を作る。
     """
     data_root = ROOT / "datasets" / DATASET
-    data_path = data_root / PREPROCESS / attack
+    #data_path = data_root / PREPROCESS / attack
+    data_path = data_root / PREPROCESS
+
+    blocks: dict[int, Path] = {
+        1: data_path / 'modified_Monday-WorkingHours.pcap_ISCX.csv',
+        2: data_path / 'modified_Monday-WorkingHours.pcap_ISCX.csv',
+        3: data_path / 'output_filtered.csv',
+    }
+
     """
     blocks: dict[int, Path] = {
         1: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
@@ -110,17 +119,19 @@ def build_blocks_for_attack(attack: str) -> dict[int, Path]:
         #6: data_path / f"2015021802_2015021804_by2h_{attack}.csv",
     }
     """
+    """
     
     blocks: dict[int, Path] = {
         1: data_path / f"2015012218_2015012220_by2h_{attack}.csv",
         2: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
-        3: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
-        4: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
-        5: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
-        6: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
-        7: data_path / f"2015021800_2015021802_by2h_{attack}.csv",
+        #3: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        #4: data_path / f"2015012220_2015012222_by2h_{attack}.csv",
+        3: data_path / f"2015012222_2015012300_by2h_{attack}.csv",
+        4: data_path / f"2015012300_2015012302_by2h_{attack}.csv",
+        5: data_path / f"2015021800_2015021802_by2h_{attack}.csv",
         #6: data_path / f"2015021802_2015021804_by2h_{attack}.csv",
     }
+    """
 
     return blocks
 
@@ -151,7 +162,6 @@ def append_alpha_mapping(
             # attack も含めるが、eval側は alpha_anom/mode/run_id だけ見てもOK
             writer.writerow(["alpha_anom", "mode", "attack", "run_id", "Radius", "normal_pull_lambda"])
         writer.writerow([alpha, mode, attack, run_id, radius, normal_pull_lambda])
-
 
 # =====================================================
 # 1回分の学習を実行する関数

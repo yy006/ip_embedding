@@ -107,7 +107,11 @@ def get_corpus(data, without_duplicates=True, services='auto', top_ports=None):
             raise Exception('top_ports parameter missing. Provide the number '\
                             'of top ports to use as services')
         data = get_top_ports(data, top_ports)
+        """
         rows = data.groupby(['serv', 'hour']).agg({'ip':list, 'Label':list})\
+                   .sort_values(['hour', 'serv'])
+        """
+        rows = data.groupby(['serv', 'hour']).agg({'ip':list})\
                    .sort_values(['hour', 'serv'])
         corpus = [x[0] for x in rows]
 
